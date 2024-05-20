@@ -1,2 +1,5 @@
 bin2addr
 *.dat
+*.gz
+*.zstd
+settings.json

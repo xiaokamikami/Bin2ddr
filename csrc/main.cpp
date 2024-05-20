@@ -40,12 +40,12 @@ int main(int argc,char *argv[]) {
     printf("load ram\n");
     img_size = load_img(input_file.c_str()) / sizeof(uint64_t);
     if (!gcpt_file.empty()) {
-      gcpt_size = override_ram(gcpt_file.c_str(), 0xf00) / sizeof(uint64_t);
+      gcpt_size = override_ram(gcpt_file.c_str(), 0x1100) / sizeof(uint64_t);
       printf("Overwrite %d bytes from file%s\n", gcpt_size, gcpt_file.c_str());
     }
 
     printf("init img size %ld\n", img_size * sizeof(uint64_t));
-    uint64_t rd_num = mem_preload(output_file, base_address, addr_map, img_size, compress_file.c_str());
+    uint64_t rd_num = mem_preload(output_file, base_address, addr_map, img_size, compress_file);
     printf("transform file %ld Bytes\n", rd_num * sizeof(uint64_t));
     return 0;
 }
@@ -53,24 +53,23 @@ int main(int argc,char *argv[]) {
 inline std::string construct_index_remp(unsigned int bg, unsigned int ba, unsigned int row, 
                                  unsigned int col_9_to_3, unsigned int col_2_to_0) {
 
-    unsigned long hex_value = (bg << 28) + (ba << 26) + (row << 10) + (col_9_to_3 << 3) + col_2_to_0;//bs.to_ulong();
+    unsigned long hex_value = (bg << 28) + (ba << 26) + (row << 10) + (col_9_to_3 << 3) + col_2_to_0;
 
     // use std::stringstream dec to hex
     std::stringstream ss;
     ss << std::hex << hex_value;
 
-    return ss.str();;
+    return ss.str();
 }
 
 //get ddr addr
-inline std::string calculate_index_hex(uint64_t index, const std::string& addr_map) {
+std::string calculate_index_hex(uint64_t index) {
     std::vector<std::string> components;
     std::stringstream ss(addr_map);
     std::string component;
     while (std::getline(ss, component, ',')) {
         components.push_back(component);
     }
-    //printf("input index %x \n",index);
     unsigned int col_2_to_0 = index & 0x7;
     index = index >> 3;
     unsigned int bg = (index & 0x3);
@@ -80,7 +79,7 @@ inline std::string calculate_index_hex(uint64_t index, const std::string& addr_m
     unsigned int ba = (index & 0x3);
     index = index >> 2;
     unsigned int row = (index & 0xFFFF);
-    index = index >> 10;
+    //index = index >> 10;
     //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x\n", bg, ba, row, col_9_to_3, col_2_to_0);
     std::string index_hex;
     index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
@@ -89,7 +88,7 @@ inline std::string calculate_index_hex(uint64_t index, const std::string& addr_m
 }
 
 //write perload
-uint64_t mem_preload(const std::string& output_file, uint64_t base_address, const std::string& addr_map, uint64_t img_size, const char *compress) {
+uint64_t mem_preload(const std::string& output_file, uint64_t base_address, const std::string& addr_map, uint64_t img_size, const std::string& compress) {
     printf("start mem preload\n");
     std::ofstream output(output_file);
     if (!output) {
@@ -99,11 +98,14 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, cons
     uint64_t rd_addr = 0;
     uint64_t index = base_address;
     extern uint64_t *ram;
-    std::vector<unsigned char> buffer;
-    bool use_compress = (compress != NULL);
-    FILE *compress_fd = fopen(compress,"r+");
+
+    bool use_compress = (!compress.empty());
+    const char *compress_ckpt = compress.c_str();
+    FILE *compress_fd = fopen(compress_ckpt,"r+");
     if (compress_fd == NULL)
-      printf("open compress_file %s flied\n", compress);
+      printf("open compress_file %s flied\n", compress_ckpt);
+    else
+      printf("use compress_file %s load ram\n", compress_ckpt);
 
     while (true) {
       if (use_compress) {
@@ -121,9 +123,9 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, cons
           uint64_t write_addr = rd_addr + i;
           uint64_t data_byte = *(ram + write_addr);
           if (data_byte != 0) {
-            std::string addr = calculate_index_hex(write_addr, addr_map);
+            std::string addr = calculate_index_hex(write_addr);
             output << "@" << addr 
-                  << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
+                   << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
           }
           index ++;
         }
@@ -135,9 +137,9 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, cons
 
         uint64_t data_byte = *(ram + rd_addr);
         if (data_byte != 0) {
-          std::string addr = calculate_index_hex(index, addr_map);
+          std::string addr = calculate_index_hex(index);
           output << "@" << addr 
-                << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
+                 << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
         }
         rd_addr += 1;
         index += 1;
