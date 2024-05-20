@@ -100,12 +100,11 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, cons
     extern uint64_t *ram;
 
     bool use_compress = (!compress.empty());
-    const char *compress_ckpt = compress.c_str();
-    FILE *compress_fd = fopen(compress_ckpt,"r+");
+    FILE *compress_fd = fopen(compress.c_str(),"r+");
     if (compress_fd == NULL)
-      printf("open compress_file %s flied\n", compress_ckpt);
+      printf("open compress_file %s flied\n", compress.c_str());
     else
-      printf("use compress_file %s load ram\n", compress_ckpt);
+      printf("use compress_file %s load ram\n", compress.c_str());
 
     while (true) {
       if (use_compress) {
@@ -153,6 +152,7 @@ int args_error(const char *name) {
   show_help();
   return 2;
 }
+
 int args_parsingniton(int argc,char *argv[]) {
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--inputfile") == 0) {
