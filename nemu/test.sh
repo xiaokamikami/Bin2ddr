@@ -1,0 +1,1 @@
+./riscv64-nemu-interpreter -b --restore ../test/test.gz -r ../test/gcpt.bin  -I 40000000 --mem_use_record_file ../test/nemuout.test
