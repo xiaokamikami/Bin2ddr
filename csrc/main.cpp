@@ -19,6 +19,14 @@ uint64_t img_size = 0;
 uint64_t gcpt_size = 0;
 char *file_ram = NULL;
 
+typedef struct {
+  uint8_t bg;
+  uint8_t ba;
+  uint8_t row;
+  uint8_t col;
+}addr_map_info;
+addr_map_info addr_map_order;
+
 void show_help() {
     std::cout << "Usage: mem_pred [OPTIONS]" << std::endl;
     std::cout << "Options:" << std::endl;
@@ -37,6 +45,22 @@ int main(int argc,char *argv[]) {
     if (args_pars !=0)
       return args_pars;
 
+    std::vector<std::string> components;
+    std::stringstream ss(addr_map);
+    std::string component;
+    while (std::getline(ss, component, ',')) {
+      static uint8_t i=0;
+      components.push_back(component);
+      i ++;
+      if (component == "bg")
+        addr_map_order.bg = i;
+      else if(component == "ba")
+        addr_map_order.ba = i;
+      else if(component == "row")
+        addr_map_order.row = i;
+      else if(component == "col")
+        addr_map_order.col = i;
+    }
     printf("load ram\n");
     img_size = load_img(input_file.c_str()) / sizeof(uint64_t);
     if (!gcpt_file.empty()) {
@@ -45,7 +69,7 @@ int main(int argc,char *argv[]) {
     }
 
     printf("init img size %ld\n", img_size * sizeof(uint64_t));
-    uint64_t rd_num = mem_preload(output_file, base_address, addr_map, img_size, compress_file);
+    uint64_t rd_num = mem_preload(output_file, base_address, img_size, compress_file);
     printf("transform file %ld Bytes\n", rd_num * sizeof(uint64_t));
     return 0;
 }
@@ -64,22 +88,25 @@ inline std::string construct_index_remp(unsigned int bg, unsigned int ba, unsign
 
 //get ddr addr
 std::string calculate_index_hex(uint64_t index) {
-    std::vector<std::string> components;
-    std::stringstream ss(addr_map);
-    std::string component;
-    while (std::getline(ss, component, ',')) {
-        components.push_back(component);
-    }
+    // basic col [2:0]
     unsigned int col_2_to_0 = index & 0x7;
     index = index >> 3;
-    unsigned int bg = (index & 0x3);
-    index = index >> 2;
-    unsigned int col_9_to_3 = (index & 0x7F);
-    index = index >> 7;
-    unsigned int ba = (index & 0x3);
-    index = index >> 2;
-    unsigned int row = (index & 0xFFFF);
-    //index = index >> 10;
+    unsigned int bg = 0,ba = 0,col_9_to_3 = 0,row = 0;
+    for (size_t i = 4; i < 0; i--) {
+      if (addr_map_order.ba == i) {
+        bg = (index & 0x3);
+        index = index >> 2;
+      } else if (addr_map_order.bg == i) {
+        ba = (index & 0x3);
+        index = index >> 2;
+      } else if (addr_map_order.col == i) {
+        col_9_to_3 = (index & 0x7F);
+        index = index >> 7;
+      } else if (addr_map_order.row == i) {
+        row = (index & 0xFFFF);
+        index = index >> 10;
+      }
+    }
     //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x\n", bg, ba, row, col_9_to_3, col_2_to_0);
     std::string index_hex;
     index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
@@ -88,7 +115,7 @@ std::string calculate_index_hex(uint64_t index) {
 }
 
 //write perload
-uint64_t mem_preload(const std::string& output_file, uint64_t base_address, const std::string& addr_map, uint64_t img_size, const std::string& compress) {
+uint64_t mem_preload(const std::string& output_file, uint64_t base_address, uint64_t img_size, const std::string& compress) {
     printf("start mem preload\n");
     std::ofstream output(output_file);
     if (!output) {
@@ -100,11 +127,14 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, cons
     extern uint64_t *ram;
 
     bool use_compress = (!compress.empty());
-    FILE *compress_fd = fopen(compress.c_str(),"r+");
-    if (compress_fd == NULL)
-      printf("open compress_file %s flied\n", compress.c_str());
-    else
-      printf("use compress_file %s load ram\n", compress.c_str());
+    FILE *compress_fd = NULL;
+    if (use_compress) {
+      compress_fd = fopen(compress.c_str(),"r+");
+      if (compress_fd == NULL)
+        printf("open compress_file %s flied\n", compress.c_str());
+      else
+        printf("use compress_file %s load ram\n", compress.c_str());
+    }
 
     while (true) {
       if (use_compress) {
