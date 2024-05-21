@@ -1,5 +1,5 @@
 CXX = g++  
-CXXFLAGS = -std=c++11 -Wextra -pedantic -Wall
+CXXFLAGS = -std=c++11 -Wextra -pedantic -Wall -O2
 
 PROM = bin2ddr  
   
