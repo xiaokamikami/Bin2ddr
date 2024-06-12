@@ -48,20 +48,22 @@ int main(int argc,char *argv[]) {
     std::vector<std::string> components;
     std::stringstream ss(addr_map);
     std::string component;
+    printf("use addr map");
     while (std::getline(ss, component, ',')) {
-      static uint8_t i=0;
       components.push_back(component);
-      i ++;
+      static int count=0;
+      count ++;
       if (component == "bg")
-        addr_map_order.bg = i;
+        addr_map_order.bg = count;
       else if(component == "ba")
-        addr_map_order.ba = i;
+        addr_map_order.ba = count;
       else if(component == "row")
-        addr_map_order.row = i;
+        addr_map_order.row = count;
       else if(component == "col")
-        addr_map_order.col = i;
+        addr_map_order.col = count;
+      std::cout << " " << component << "=" << count;
     }
-    printf("load ram\n");
+    printf("\nstart load ram\n");
     img_size = load_img(input_file.c_str()) / sizeof(uint64_t);
     if (!gcpt_file.empty()) {
       gcpt_size = override_ram(gcpt_file.c_str(), 0x1100) / sizeof(uint64_t);
@@ -92,12 +94,12 @@ std::string calculate_index_hex(uint64_t index) {
     unsigned int col_2_to_0 = index & 0x7;
     index = index >> 3;
     unsigned int bg = 0,ba = 0,col_9_to_3 = 0,row = 0;
-    for (size_t i = 4; i < 0; i--) {
+    for (int i = 4; i > 0; i--) {
       if (addr_map_order.ba == i) {
-        bg = (index & 0x3);
+        ba = (index & 0x3);
         index = index >> 2;
       } else if (addr_map_order.bg == i) {
-        ba = (index & 0x3);
+        bg = (index & 0x3);
         index = index >> 2;
       } else if (addr_map_order.col == i) {
         col_9_to_3 = (index & 0x7F);
