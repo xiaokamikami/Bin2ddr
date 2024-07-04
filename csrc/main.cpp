@@ -167,7 +167,7 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, uint
           if (data_byte != 0)
             data_byte = htobe64(data_byte);
           uint64_t addr_map = calculate_index_hex(i);
-          if (addr_map > img_size)
+          if (addr_map > RAM_SIZE)
             printf("addr map over size \n");
           *(temp_ram + addr_map) = data_byte;
         }
