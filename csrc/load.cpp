@@ -13,11 +13,9 @@ long readFromGz(void *ptr, const char *file_name, long buf_size, uint8_t load_ty
 long readFromZstd(void *ptr, const char *file_name, long buf_size, uint8_t load_type);
 
 uint64_t *ram = NULL;
-
-uint64_t ram_size = 16 * 1024 * 1024 * 1024UL;
-
+uint64_t ram_size = RAM_SIZE;
 uint64_t load_img(const char * image) {
-    ram = (uint64_t *)malloc(ram_size);//mmap(NULL, ram_size, PROT_READ, MAP_PRIVATE, -1, 0);
+    ram = (uint64_t *)malloc(RAM_SIZE);//mmap(NULL, ram_size, PROT_READ, MAP_PRIVATE, -1, 0);
 
     if (ram == (uint64_t *)MAP_FAILED) {
       printf("Warning: Insufficient phisical memory\n");
