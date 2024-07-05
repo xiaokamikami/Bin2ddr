@@ -10,7 +10,6 @@
 #include "../include/bin2ddr.h"
 #include <endian.h>
 
-#define UINT64_SIZE sizeof(uint64_t)
 #define COMPRESS_SIZE (4 * 1024 * 1024)
 std::string input_file;
 std::string gcpt_file;
@@ -22,8 +21,7 @@ uint64_t img_size = 0;
 uint64_t gcpt_size = 0;
 bool out_raw = false;
 char *file_ram = NULL;
-uint64_t *temp_ram = (uint64_t *)malloc(RAM_SIZE);
-
+uint64_t *temp_ram = (uint64_t *)malloc(GB_8_SIZE);
 typedef struct {
   uint8_t bg;
   uint8_t ba;
@@ -140,7 +138,7 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, uint
     }
 
     while (true) {
-      if (use_compress) {
+      if (use_compress) {// out compress dat
         if (feof(compress_fd))
           break;
         if (fscanf(compress_fd, "%d", &rd_addr) != 1)
@@ -161,23 +159,25 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, uint
           }
           index ++;
         }
-      } else if (out_raw) {
-        for (size_t i = 0; i < img_size; i++) {
+      } else if (out_raw) {// out raw2
+        for (size_t i = 0; i <= img_size; i++) {
           uint64_t data_byte = *(ram + i);
           if (data_byte != 0)
             data_byte = htobe64(data_byte);
           uint64_t addr_map = calculate_index_hex(i);
-          if (addr_map > RAM_SIZE)
+          if (addr_map > GB_8_SIZE / UINT64_SIZE)
             printf("addr map over size \n");
+          // input temp map RAM
           *(temp_ram + addr_map) = data_byte;
         }
         printf("addr map ok file\n");
-        for (size_t i = 0; i < img_size; i++) {
-          uint64_t data_byte = *(temp_ram + i);
+        for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
+          uint64_t data_byte;
+          data_byte = *(temp_ram + i);
           output.write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
         }
         return img_size;
-      } else {
+      } else {// out dat
         if (rd_addr >= img_size) {
           printf("ram read addr over img size \n");
           break;
@@ -187,7 +187,7 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, uint
         if (data_byte != 0) {
           uint64_t addr = calculate_index_hex(index);
           output << "@" << addr 
-                   << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
+                 << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
         }
         rd_addr += 1;
         index += 1;
