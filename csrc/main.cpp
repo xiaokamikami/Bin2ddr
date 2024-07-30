@@ -21,7 +21,9 @@ uint64_t img_size = 0;
 uint64_t gcpt_size = 0;
 bool out_raw = false;
 char *file_ram = NULL;
+uint32_t gcpt_over_size = 1024 * 1024 -1;
 uint64_t *temp_ram = (uint64_t *)malloc(GB_8_SIZE);
+
 typedef struct {
   uint8_t bg;
   uint8_t ba;
@@ -40,6 +42,7 @@ void show_help() {
     std::cout << "  -c, --compress            Specify the use nemu compress checkpoint" << std::endl;
     std::cout << "  -r, --restore             Specify the gcpt-restore cover checkpoint" << std::endl; 
     std::cout << "  --raw2                    Specify the use raw2 fomat out file" << std::endl;
+    std::cout << "  --overrid                 Reset the size of using the length flag in gcpt_restore" << std::endl;
     std::cout << "  -h, --help                Show this help message" << std::endl;
 }
 
@@ -70,7 +73,7 @@ int main(int argc,char *argv[]) {
     printf("\nstart load ram\n");
     img_size = load_img(input_file.c_str()) / UINT64_SIZE;
     if (!gcpt_file.empty()) {
-      gcpt_size = override_ram(gcpt_file.c_str(), 0x1100) / UINT64_SIZE;
+      gcpt_size = override_ram(gcpt_file.c_str(), gcpt_over_size) / UINT64_SIZE;
       printf("Overwrite %d bytes from file%s\n", gcpt_size, gcpt_file.c_str());
     }
 
@@ -129,13 +132,15 @@ uint64_t mem_out_raw2(std::ofstream& output) {
   extern uint64_t *ram;
   for (size_t i = 0; i <= img_size; i++) {
     uint64_t data_byte = *(ram + i);
-    if (data_byte != 0)
+    if (data_byte != 0) {
       data_byte = htobe64(data_byte);
       uint64_t addr_map = calculate_index_hex(i);
-      if (addr_map > GB_8_SIZE / UINT64_SIZE)
-        printf("addr map over size \n");
-        // input temp map RAM
-        *(temp_ram + addr_map) = data_byte;
+      if (addr_map > GB_8_SIZE / UINT64_SIZE) {
+        printf("addr map over size %ld\n", GB_8_SIZE);
+      }
+      // input temp map RAM
+      *(temp_ram + addr_map) = data_byte;
+    }
   }
   printf("addr map ok\n");
   for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
@@ -228,6 +233,18 @@ int args_parsingniton(int argc,char *argv[]) {
       } else {
         return args_error("restore");
       }
+    } else if (strcmp(argv[i], "--overrid") == 0) {
+      FILE *fp = fopen(gcpt_file.c_str(), "rb");
+      assert(fp != NULL);
+      uint64_t data;
+      if (fread(&data, sizeof(uint64_t), 1, fp) != 1) {
+        fclose(fp);
+        return args_error("ailed to read 8 bytes from file");
+      }
+      fclose(fp);
+      // Get the lower four bytes
+      gcpt_over_size = (uint32_t)(data & 0xFFFFFFFF);
+      printf("reset gpct over size %d\n", gcpt_over_size);
     } else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--addrmap") == 0) {
       if (i + 1 < argc) {
         addr_map = argv[++i];
@@ -248,7 +265,6 @@ int args_parsingniton(int argc,char *argv[]) {
       }
     } else if (strcmp(argv[i], "--raw2") == 0) {
       out_raw = true;
-      return 0;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       show_help();
       return 0;
@@ -258,5 +274,6 @@ int args_parsingniton(int argc,char *argv[]) {
       return 2;
     }
   }
+
   return 0;
 }
