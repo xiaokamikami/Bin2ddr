@@ -86,6 +86,11 @@ int main(int argc,char *argv[]) {
       else if(component == "ra")
         addr_map_order.ra == count;
       std::cout << " " << component << "=" << count;
+#if (FILE_NUM == 1)
+      if ((component == "ch" || component == "ra" )) {
+        std::cout << "The number of channels is only 1, so the set channel and rank are invalid at this time" << std::endl;
+      }
+#endif // FILE_NUM
       addr_map_order.use_size = count;
     }
 
@@ -104,8 +109,7 @@ int main(int argc,char *argv[]) {
 
 inline uint64_t construct_index_remp(uint32_t bg, uint32_t ba, uint32_t row, 
                                  uint32_t col_9_to_3, uint32_t col_2_to_0) {
-    uint64_t hex_value = (bg << 28) + (ba << 26) + (row << 10) + (col_9_to_3 << 3) + col_2_to_0;
-    return hex_value;
+  return (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
 }
 
 //get ddr addr
@@ -113,7 +117,8 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     // basic col [2:0]
     uint32_t col_2_to_0 = index & 0x7;
     index = index >> 3;
-    uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0,dch = 0,ra = 0;
+    uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0;
+
     for (int i = addr_map_order.use_size; i > 0; i--) {
       if (addr_map_order.ba == i) {
         ba = (index & 0x3);
@@ -130,14 +135,12 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
       }
 #if (FILE_NUM > 1)
       else if (addr_map_order.dch == i) {
-        dch = (index & 0b1);
+        *file_index |= (index & 0x1) << 1;
         index = index >> 1;
-        *file_index |= dch << 1;
       }
       else if (addr_map_order.ra == i) {
-        ra = (index & 0b1);
+        *file_index |= (index & 0x1);
         index = index >> 1;
-        *file_index |= ra;
       }
 #endif // FILE_NUM
     }
@@ -223,7 +226,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
     } else {
       while (1) {
         // out dat
-        if (rd_addr >= img_size) {
+        if (rd_addr > img_size) {
           printf("ram read addr over img size \n");
           break;
         }
