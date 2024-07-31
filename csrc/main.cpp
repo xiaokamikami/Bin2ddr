@@ -11,24 +11,29 @@
 #include <endian.h>
 
 #define COMPRESS_SIZE (4 * 1024 * 1024)
+#if (FILE_NUM == 1)
+std::string addr_map = "bg,ba,row,col";
+#else
+std::string addr_map = "ra,row,ba,col,bg,ch";
+#endif
+
 std::string input_file;
 std::string gcpt_file;
 std::string compress_file;
-std::string output_file;
-std::string addr_map = "bg,ba,row,col";
+std::array<std::ofstream, FILE_NUM> output_files;
 uint64_t base_address = 0;
 uint64_t img_size = 0;
 uint64_t gcpt_size = 0;
 bool out_raw = false;
 char *file_ram = NULL;
+char *base_out_file = NULL;
 uint32_t gcpt_over_size = 1024 * 1024 -1;
 uint64_t *temp_ram = (uint64_t *)malloc(GB_8_SIZE);
 
 typedef struct {
-  uint8_t bg;
-  uint8_t ba;
-  uint8_t row;
-  uint8_t col;
+  uint8_t bg, ba, row, col;
+  uint8_t dch, ra;
+  uint8_t use_size;
 }addr_map_info;
 addr_map_info addr_map_order;
 
@@ -55,6 +60,14 @@ int main(int argc,char *argv[]) {
     std::vector<std::string> components;
     std::stringstream ss(addr_map);
     std::string component;
+
+    printf("out file num %d\n", FILE_NUM);
+    for (size_t i = 0; i < FILE_NUM; i++) {
+      char file_name[128];
+      sprintf(file_name, "%d_%s", i, base_out_file);
+      output_files[i].open(file_name);
+    }
+
     printf("use addr map");
     while (std::getline(ss, component, ',')) {
       components.push_back(component);
@@ -68,8 +81,14 @@ int main(int argc,char *argv[]) {
         addr_map_order.row = count;
       else if(component == "col")
         addr_map_order.col = count;
+      else if(component == "ch")
+        addr_map_order.dch = count;
+      else if(component == "ra")
+        addr_map_order.ra == count;
       std::cout << " " << component << "=" << count;
+      addr_map_order.use_size = count;
     }
+
     printf("\nstart load ram\n");
     img_size = load_img(input_file.c_str()) / UINT64_SIZE;
     if (!gcpt_file.empty()) {
@@ -78,25 +97,24 @@ int main(int argc,char *argv[]) {
     }
 
     printf("init img size %ld\n", img_size * UINT64_SIZE);
-    uint64_t rd_num = mem_preload(output_file, base_address, img_size, compress_file);
+    uint64_t rd_num = mem_preload(base_address, img_size, compress_file);
     printf("transform file %ld Bytes\n", rd_num * UINT64_SIZE);
     return 0;
 }
 
-inline uint64_t construct_index_remp(unsigned int bg, unsigned int ba, unsigned int row, 
-                                 unsigned int col_9_to_3, unsigned int col_2_to_0) {
-
-    unsigned long hex_value = (bg << 28) + (ba << 26) + (row << 10) + (col_9_to_3 << 3) + col_2_to_0;
+inline uint64_t construct_index_remp(uint32_t bg, uint32_t ba, uint32_t row, 
+                                 uint32_t col_9_to_3, uint32_t col_2_to_0) {
+    uint64_t hex_value = (bg << 28) + (ba << 26) + (row << 10) + (col_9_to_3 << 3) + col_2_to_0;
     return hex_value;
 }
 
 //get ddr addr
-inline uint64_t calculate_index_hex(uint64_t index) {
+inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     // basic col [2:0]
-    unsigned int col_2_to_0 = index & 0x7;
+    uint32_t col_2_to_0 = index & 0x7;
     index = index >> 3;
-    unsigned int bg = 0,ba = 0,col_9_to_3 = 0,row = 0;
-    for (int i = 4; i > 0; i--) {
+    uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0,dch = 0,ra = 0;
+    for (int i = addr_map_order.use_size; i > 0; i--) {
       if (addr_map_order.ba == i) {
         ba = (index & 0x3);
         index = index >> 2;
@@ -110,31 +128,44 @@ inline uint64_t calculate_index_hex(uint64_t index) {
         row = (index & 0xFFFF);
         index = index >> 10;
       }
+#if (FILE_NUM > 1)
+      else if (addr_map_order.dch == i) {
+        dch = (index & 0b1);
+        index = index >> 1;
+        *file_index |= dch << 1;
+      }
+      else if (addr_map_order.ra == i) {
+        ra = (index & 0b1);
+        index = index >> 1;
+        *file_index |= ra;
+      }
+#endif // FILE_NUM
     }
     //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x\n", bg, ba, row, col_9_to_3, col_2_to_0);
-    uint64_t index_hex;
-    index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
+    uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
 
     return index_hex;
 }
 
-inline void mem_out_hex(std::ofstream& output, uint64_t rd_addr, uint64_t index) {
+inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
   if (data_byte != 0) {
-    uint64_t addr = calculate_index_hex(index);
-    output << "@" << addr 
+    uint32_t file_index = 0;
+    uint64_t addr = calculate_index_hex(index, &file_index);
+    output_files[file_index] << "@" << addr 
            << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
   }
 }
 
-uint64_t mem_out_raw2(std::ofstream& output) {
+uint64_t mem_out_raw2() {
   extern uint64_t *ram;
   for (size_t i = 0; i <= img_size; i++) {
     uint64_t data_byte = *(ram + i);
     if (data_byte != 0) {
       data_byte = htobe64(data_byte);
-      uint64_t addr_map = calculate_index_hex(i);
+      uint32_t file_index = 0;
+      uint64_t addr_map = calculate_index_hex(i, &file_index);
       if (addr_map > GB_8_SIZE / UINT64_SIZE) {
         printf("addr map over size %ld\n", GB_8_SIZE);
       }
@@ -145,34 +176,29 @@ uint64_t mem_out_raw2(std::ofstream& output) {
   printf("addr map ok\n");
   for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
     uint64_t data_byte = *(temp_ram + i);
-    output.write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
+    output_files[0].write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
   }
   return 0;
 }
 
 //write perload
-uint64_t mem_preload(const std::string& output_file, uint64_t base_address, uint64_t img_size, const std::string& compress) {
+uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string& compress) {
     printf("start mem preload\n");
-    std::ofstream output(output_file, std::ios::out);
-    if (!output) {
-        std::cerr << "Error: failed to open output file" << std::endl;
-        std::exit(1);
-    }
     uint64_t rd_addr = 0;
     uint64_t index = base_address;
 
     bool use_compress = (!compress.empty());
     FILE *compress_fd = NULL;
     if (use_compress) {
-      compress_fd = fopen(compress.c_str(),"r+");
+      compress_fd = fopen(compress.c_str(), "r+");
       if (compress_fd == NULL)
         printf("open compress_file %s flied\n", compress.c_str());
       else
         printf("use compress_file %s load ram\n", compress.c_str());
     }
 
-    while (true) {
-      if (use_compress) {
+    if (use_compress) {
+      while (true) {
         // out compress dat
         if (feof(compress_fd))
           break;
@@ -186,20 +212,22 @@ uint64_t mem_preload(const std::string& output_file, uint64_t base_address, uint
 
         for (size_t i = 0; i < COMPRESS_SIZE / UINT64_SIZE; i++) {
           uint64_t write_addr = rd_addr + i;
-          mem_out_hex(output, rd_addr, write_addr);
+          mem_out_hex(rd_addr, write_addr);
           index ++;
         }
-      } else if (out_raw) {
-        // out raw2
-        mem_out_raw2(output);
-        return img_size;
-      } else {
+      }
+    } else if (out_raw) {
+      // out raw2
+      mem_out_raw2();
+      return img_size;
+    } else {
+      while (1) {
         // out dat
         if (rd_addr >= img_size) {
           printf("ram read addr over img size \n");
           break;
         }
-        mem_out_hex(output, rd_addr, index);
+        mem_out_hex(rd_addr, index);
         rd_addr += 1;
         index += 1;
       }
@@ -223,7 +251,7 @@ int args_parsingniton(int argc,char *argv[]) {
       }
     } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--outputfile") == 0) {
       if (i + 1 < argc) {
-        output_file = argv[++i];
+        base_out_file = argv[++i];
       } else {
         return args_error("output file");
       }

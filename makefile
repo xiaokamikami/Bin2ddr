@@ -8,6 +8,11 @@ SRCDIR = ./csrc/
 INCDIR = ./include/  
 OBJDIR = ./obj/  
 
+CHANNEL ?= 1
+RANK ?=1
+FILE_NUM := $(shell echo $$(( $(CHANNEL) * $(RANK) )))
+CXXFLAGS+= -DFILE_NUM=$(FILE_NUM)
+
 LDFLAGS =-L. -static -lz -lzstd
 # 使用 -I 选项指定头文件搜索路径  
 CPPFLAGS = -I$(INCDIR)  
@@ -33,7 +38,8 @@ $(OBJDIR)%.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -g -o $@  
   
 # 清理规则  
-clean:  
+clean:
+	rm bin2ddr
 	rm -rf $(OBJDIR) $(PROM)  
   
 # 添加一个 phony 目标来确保 obj 目录总是存在的  
