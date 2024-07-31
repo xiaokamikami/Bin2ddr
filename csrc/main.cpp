@@ -230,6 +230,10 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
       }
     } else if (out_raw) {
       // out raw2
+#if (FILE_NUM > 1)
+      printf("The export of raw2 does not support multi-channel and multi-rank for the time being\n");
+      assert(0);
+#endif // FILE_NUM
       temp_ram = (uint64_t *)malloc(GB_8_SIZE);
       mem_out_raw2();
       return img_size;
