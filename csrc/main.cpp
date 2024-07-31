@@ -28,7 +28,9 @@ bool out_raw = false;
 char *file_ram = NULL;
 char *base_out_file = NULL;
 uint32_t gcpt_over_size = 1024 * 1024 -1;
-uint64_t *temp_ram = (uint64_t *)malloc(GB_8_SIZE);
+uint64_t *temp_ram =NULL;
+
+void set_ddrmap();
 
 typedef struct {
   uint8_t bg, ba, row, col;
@@ -38,17 +40,19 @@ typedef struct {
 addr_map_info addr_map_order;
 
 void show_help() {
-    std::cout << "Usage: mem_pred [OPTIONS]" << std::endl;
-    std::cout << "Options:" << std::endl;
-    std::cout << "  -i, --inputfile <FILE>    Specify the input file path" << std::endl;
-    std::cout << "  -o, --outputfile <FILE>   Specify the output file path" << std::endl;
-    std::cout << "  -m, --addrmap <ORDER>     Specify the address map order (default \"row,ba,col,bg\")" << std::endl;
-    std::cout << "  -b, --baseaddress <ADDR>  Specify the base address in hexadecimal" << std::endl;
-    std::cout << "  -c, --compress            Specify the use nemu compress checkpoint" << std::endl;
-    std::cout << "  -r, --restore             Specify the gcpt-restore cover checkpoint" << std::endl; 
-    std::cout << "  --raw2                    Specify the use raw2 fomat out file" << std::endl;
-    std::cout << "  --overrid                 Reset the size of using the length flag in gcpt_restore" << std::endl;
-    std::cout << "  -h, --help                Show this help message" << std::endl;
+    using namespace std;
+    cout << "Usage: mem_pred [OPTIONS]" << endl;
+    cout << "Options:" << endl;
+    cout << "  -i, --inputfile <FILE>    Specify the input file path" << endl;
+    cout << "  -o, --outputfile <FILE>   Specify the output file path" << endl;
+    cout << "  -m, --addrmap <ORDER>     Specify the address map order (default \"row,ba,col,bg\")" << endl;
+    cout << "  -b, --baseaddress <ADDR>  Specify the base address in hexadecimal" << endl;
+    cout << "  -c, --compress            Specify the use nemu compress checkpoint" << endl;
+    cout << "  -r, --restore             Specify the gcpt-restore cover checkpoint" << endl; 
+    cout << "  --raw2                    Specify the use raw2 fomat out file" << endl;
+    cout << "  --overrid                 Reset the size of using the length flag in gcpt_restore" << endl;
+    cout << "  -h, --help                Show this help message" << endl;
+    exit(0);
 }
 
 int main(int argc,char *argv[]) {
@@ -57,9 +61,31 @@ int main(int argc,char *argv[]) {
     if (args_pars !=0)
       return args_pars;
 
-    std::vector<std::string> components;
-    std::stringstream ss(addr_map);
-    std::string component;
+    set_ddrmap();
+
+    printf("\nstart load ram\n");
+    img_size = load_img(input_file.c_str()) / UINT64_SIZE;
+    if (!gcpt_file.empty()) {
+      gcpt_size = override_ram(gcpt_file.c_str(), gcpt_over_size) / UINT64_SIZE;
+      printf("Overwrite %d bytes from file%s\n", gcpt_size, gcpt_file.c_str());
+    }
+
+    printf("init img size %ld\n", img_size * UINT64_SIZE);
+    uint64_t rd_num = mem_preload(base_address, img_size, compress_file);
+    printf("transform file %ld Bytes\n", rd_num * UINT64_SIZE);
+    return 0;
+}
+
+inline uint64_t construct_index_remp(uint32_t bg, uint32_t ba, uint32_t row, 
+                                 uint32_t col_9_to_3, uint32_t col_2_to_0) {
+  return (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
+}
+
+void set_ddrmap() {
+    using namespace std;
+    vector<string> components;
+    stringstream ss(addr_map);
+    string component;
 
     printf("out file num %d\n", FILE_NUM);
     for (size_t i = 0; i < FILE_NUM; i++) {
@@ -85,31 +111,14 @@ int main(int argc,char *argv[]) {
         addr_map_order.dch = count;
       else if(component == "ra")
         addr_map_order.ra == count;
-      std::cout << " " << component << "=" << count;
+      cout << " " << component << "=" << count;
 #if (FILE_NUM == 1)
       if ((component == "ch" || component == "ra" )) {
-        std::cout << "The number of channels is only 1, so the set channel and rank are invalid at this time" << std::endl;
+        cout << "The number of channels is only 1, so the set channel and rank are invalid at this time" << endl;
       }
 #endif // FILE_NUM
       addr_map_order.use_size = count;
     }
-
-    printf("\nstart load ram\n");
-    img_size = load_img(input_file.c_str()) / UINT64_SIZE;
-    if (!gcpt_file.empty()) {
-      gcpt_size = override_ram(gcpt_file.c_str(), gcpt_over_size) / UINT64_SIZE;
-      printf("Overwrite %d bytes from file%s\n", gcpt_size, gcpt_file.c_str());
-    }
-
-    printf("init img size %ld\n", img_size * UINT64_SIZE);
-    uint64_t rd_num = mem_preload(base_address, img_size, compress_file);
-    printf("transform file %ld Bytes\n", rd_num * UINT64_SIZE);
-    return 0;
-}
-
-inline uint64_t construct_index_remp(uint32_t bg, uint32_t ba, uint32_t row, 
-                                 uint32_t col_9_to_3, uint32_t col_2_to_0) {
-  return (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
 }
 
 //get ddr addr
@@ -221,6 +230,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
       }
     } else if (out_raw) {
       // out raw2
+      temp_ram = (uint64_t *)malloc(GB_8_SIZE);
       mem_out_raw2();
       return img_size;
     } else {
@@ -298,11 +308,9 @@ int args_parsingniton(int argc,char *argv[]) {
       out_raw = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       show_help();
-      return 0;
     } else {
       std::cerr << "Error: unknown option " << argv[i] << std::endl;
       show_help();
-      return 2;
     }
   }
 
