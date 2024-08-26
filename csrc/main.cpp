@@ -5,10 +5,15 @@
 #include <sstream>
 #include <iomanip>
 #include <bitset>
+#include <endian.h>
+#include <thread>
+#include <vector>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
 #include "../include/common.h"
 #include "../include/load.h"
 #include "../include/bin2ddr.h"
-#include <endian.h>
 
 #define COMPRESS_SIZE (4 * 1024 * 1024)
 #if (FILE_NUM == 1)
@@ -159,14 +164,50 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     return index_hex;
 }
 
+std::mutex queue_mutex;
+std::condition_variable cv;
+struct MemoryQueues {
+  uint64_t data;
+  uint64_t addr;
+  uint32_t file;
+};
+std::queue<MemoryQueues> memory_queues;
+
+bool finished = false;
+void thread_write_files() {
+  MemoryQueues this_memory;
+  while (true) {
+    if(~finished) {
+      std::unique_lock<std::mutex> lock(queue_mutex);
+      cv.wait(lock, []{ return !memory_queues.empty() || finished; });
+      this_memory = memory_queues.front();
+      memory_queues.pop();
+    } else {
+      this_memory = memory_queues.front();
+      memory_queues.pop();
+    }
+    //output_files[this_memory.file] << this_memory.str;
+    output_files[this_memory.file] << "@" << this_memory.addr 
+            << " " << std::hex << std::setw(16) << std::setfill('0') << this_memory.data << "\n";
+    if (finished && memory_queues.empty()) {
+      return;  
+    }
+  }
+}
+
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
   if (data_byte != 0) {
     uint32_t file_index = 0;
     uint64_t addr = calculate_index_hex(index, &file_index);
-    output_files[file_index] << "@" << addr 
-           << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
+    // output_files[file_index] << "@" << addr 
+    //        << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
+    {
+      std::lock_guard<std::mutex> lock(queue_mutex);
+      memory_queues.push({data_byte, addr, file_index});
+    }
+    cv.notify_one();
   }
 }
 
@@ -238,6 +279,8 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
       mem_out_raw2();
       return img_size;
     } else {
+      // Start a consumer thread to write to the file
+      std::thread consumer_thread(thread_write_files);
       while (1) {
         // out dat
         if (rd_addr > img_size) {
@@ -248,6 +291,13 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
         rd_addr += 1;
         index += 1;
       }
+
+      { 
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        finished = true;
+      }
+      cv.notify_one();
+      consumer_thread.join();
     }
     return index;
 }

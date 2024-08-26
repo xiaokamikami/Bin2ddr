@@ -25,18 +25,18 @@ SRCS = $(shell find $(SRCDIR) -name "*.cpp")
   
 # 生成对应的对象文件列表，并指定它们应该在 obj 目录下  
 OBJS = $(patsubst $(SRCDIR)%.cpp,$(OBJDIR)%.o,$(SRCS))  
-  
+
 # 创建 obj 目录（如果它不存在）  
 $(shell mkdir -p $(OBJDIR))  
   
 # 链接目标程序  
 $(PROM): $(OBJS)  
-	$(CXX) $(CXXFLAGS) -g -o $@ $^ $(LDFLAGS)  
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)  
   
 # 编译规则  
-$(OBJDIR)%.o: %.cpp  
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -g -o $@  
-  
+$(OBJDIR)%.o: $(SRCDIR)%.cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+
 # 清理规则  
 clean:
 	rm bin2ddr
