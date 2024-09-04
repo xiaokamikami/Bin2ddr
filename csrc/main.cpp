@@ -177,7 +177,7 @@ bool finished = false;
 void thread_write_files() {
   MemoryQueues this_memory;
   while (true) {
-    if(~finished) {
+    if(!finished) {
       std::unique_lock<std::mutex> lock(queue_mutex);
       cv.wait(lock, []{ return !memory_queues.empty() || finished; });
       this_memory = memory_queues.front();

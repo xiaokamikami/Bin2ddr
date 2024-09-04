@@ -1,5 +1,5 @@
 CXX = g++  
-CXXFLAGS = -std=c++11 -Wextra -pedantic -Wall -O3
+CXXFLAGS = -std=c++11 -Wextra -pedantic -pthread -Wall -O3
 
 PROM = bin2ddr  
   
@@ -13,7 +13,7 @@ RANK ?=1
 FILE_NUM := $(shell echo $$(( $(CHANNEL) * $(RANK) )))
 CXXFLAGS+= -DFILE_NUM=$(FILE_NUM)
 
-LDFLAGS =-L. -static -lz -lzstd
+LDFLAGS =-L. -lz -lzstd
 # 使用 -I 选项指定头文件搜索路径  
 CPPFLAGS = -I$(INCDIR)  
   
