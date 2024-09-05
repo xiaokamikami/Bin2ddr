@@ -328,18 +328,19 @@ int args_parsingniton(int argc,char *argv[]) {
       } else {
         return args_error("restore");
       }
-    } else if (strcmp(argv[i], "--overrid") == 0) {
+      // Get the lower four bytes
+      uint32_t data;
       FILE *fp = fopen(gcpt_file.c_str(), "rb");
-      assert(fp != NULL);
-      uint64_t data;
-      if (fread(&data, sizeof(uint64_t), 1, fp) != 1) {
+      fseek(fp, 4, SEEK_SET);  
+      if (fread(&data, sizeof(uint32_t), 1, fp) != 1) {
         fclose(fp);
         return args_error("ailed to read 8 bytes from file");
       }
       fclose(fp);
-      // Get the lower four bytes
-      gcpt_over_size = (uint32_t)(data & 0xFFFFFFFF);
-      printf("reset gpct over size %d\n", gcpt_over_size);
+      gcpt_over_size = data;
+      printf("reset gcpt over size %d  hex:%x\n", gcpt_over_size, gcpt_over_size);
+    } else if (strcmp(argv[i], "--overrid") == 0) {
+      sscanf(argv[++i],"%u", &gcpt_over_size);
     } else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--addrmap") == 0) {
       if (i + 1 < argc) {
         addr_map = argv[++i];
