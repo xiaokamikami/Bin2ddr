@@ -71,7 +71,7 @@ int main(int argc,char *argv[]) {
     printf("\nstart load ram\n");
     img_size = load_img(input_file.c_str()) / UINT64_SIZE;
     if (!gcpt_file.empty()) {
-      gcpt_size = override_ram(gcpt_file.c_str(), gcpt_over_size) / UINT64_SIZE;
+      gcpt_size = override_ram(gcpt_file.c_str(), gcpt_over_size);
       printf("Overwrite %d bytes from file%s\n", gcpt_size, gcpt_file.c_str());
     }
 
