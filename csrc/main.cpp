@@ -131,6 +131,7 @@ void set_ddrmap() {
 #if (FILE_NUM == 1)
       if ((component == "ch" || component == "ra" )) {
         cout << "The number of channels is only 1, so the set channel and rank are invalid at this time" << endl;
+        exit(0);
       }
 #endif // FILE_NUM
       addr_map_order.use_size = count;
@@ -176,47 +177,41 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     return index_hex;
 }
 
-std::mutex queue_mutex;
-std::condition_variable cv;
+std::mutex queue_mutex[FILE_NUM];
+std::condition_variable cv[FILE_NUM];
 struct MemoryQueues {
   uint64_t data;
   uint64_t addr;
-  uint32_t file;
 };
-std::queue<MemoryQueues> memory_queues;
+std::queue<MemoryQueues> memory_queues[FILE_NUM];
 
 bool finished = false;
-void thread_write_files() {
+void thread_write_files(int ch) {
   MemoryQueues this_memory;
-  std::string buffer[FILE_NUM];
-  for(int i = 0; i < FILE_NUM; i++) {
-    buffer[i].reserve(STREAM_BUFFER_SIZE);
-  }
+  std::string buffer;
+  buffer.reserve(STREAM_BUFFER_SIZE);
+  char temp[64];
 
   while (true) {
     if(!finished) {
-      std::unique_lock<std::mutex> lock(queue_mutex);
-      cv.wait(lock, []{ return !memory_queues.empty() || finished; });
-      if (memory_queues.empty()) continue;
-      this_memory = memory_queues.front();
-      memory_queues.pop();
+      std::unique_lock<std::mutex> lock(queue_mutex[ch]);
+      cv[ch].wait(lock, [ch]{ return !memory_queues[ch].empty() || finished;});
+      this_memory = memory_queues[ch].front();
+      memory_queues[ch].pop();
     } else {
-      this_memory = memory_queues.front();
-      memory_queues.pop();
+      this_memory = memory_queues[ch].front();
+      memory_queues[ch].pop();
     }
-    std::stringstream ss;
-    ss << "@" << std::hex << this_memory.addr 
-       << " " << std::setw(16) << std::setfill('0') << this_memory.data << std::dec << "\n";
-    buffer[this_memory.file] += ss.str();
-    if (buffer[this_memory.file].size() > STREAM_BUFFER_SIZE) {
-      output_files[this_memory.file] << buffer[this_memory.file];
-      buffer[this_memory.file].clear();
+    int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+    buffer.append(temp, len);
+    if (buffer.size() > STREAM_BUFFER_SIZE) {
+      output_files[ch] << buffer;
+      buffer.clear();
     }
-    if (finished && memory_queues.empty()) {
-      for (size_t i = 0; i < FILE_NUM; i++) {
-        if (buffer[i].size() > 0)
-          output_files[i] << buffer[i];
-      }
+
+    if (finished && memory_queues[ch].empty()) {
+      if (buffer.size() > 0)
+        output_files[ch] << buffer;
       return;  
     }
   }
@@ -228,13 +223,11 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   if (data_byte != 0 || FILE_NUM > 1) {
     uint32_t file_index = 0;
     uint64_t addr = calculate_index_hex(index, &file_index);
-    // output_files[file_index] << "@" << addr 
-    //        << " " << std::hex << std::setw(16) << std::setfill('0') << data_byte << "\n";
     {
-      std::lock_guard<std::mutex> lock(queue_mutex);
-      memory_queues.push({data_byte, addr, file_index});
+      std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
+      memory_queues[file_index].push({data_byte, addr});
     }
-    cv.notify_one();
+    cv[file_index].notify_one();
   }
 }
 
@@ -307,7 +300,10 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
       return img_size;
     } else {
       // Start a consumer thread to write to the file
-      std::thread consumer_thread(thread_write_files);
+      std::thread consumer_thread[FILE_NUM];
+      for (size_t i = 0; i < FILE_NUM; i++){   
+        consumer_thread[i] = std::thread(thread_write_files, i);
+      }
       while (1) {
         // out dat
         if (rd_addr > img_size) {
@@ -319,12 +315,11 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
         index += 1;
       }
 
-      { 
-        std::lock_guard<std::mutex> lock(queue_mutex);
-        finished = true;
+      finished = true;
+      for (size_t i = 0; i < FILE_NUM; i++) {
+        cv[i].notify_one();
+        consumer_thread[i].join();
       }
-      cv.notify_one();
-      consumer_thread.join();
     }
     return index;
 }
