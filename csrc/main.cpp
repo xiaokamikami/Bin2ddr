@@ -14,8 +14,12 @@
 #include "../include/common.h"
 #include "../include/load.h"
 #include "../include/bin2ddr.h"
-
+#ifdef PERF
+#include <chrono>
+#endif
+#define STREAM_BUFFER_SIZE 1024 * 1024 * 128
 #define COMPRESS_SIZE (4 * 1024 * 1024)
+
 #if (FILE_NUM == 1)
 std::string addr_map = "bg,ba,row,col";
 #else
@@ -65,7 +69,9 @@ int main(int argc,char *argv[]) {
     args_pars = args_parsingniton(argc, argv);
     if (args_pars !=0)
       return args_pars;
-
+#ifdef PERF
+    auto start = std::chrono::high_resolution_clock::now();
+#endif
     set_ddrmap();
 
     printf("\nstart load ram\n");
@@ -78,6 +84,11 @@ int main(int argc,char *argv[]) {
     printf("init img size %ld\n", img_size * UINT64_SIZE);
     uint64_t rd_num = mem_preload(base_address, img_size, compress_file);
     printf("transform file %ld Bytes\n", rd_num * UINT64_SIZE);
+#ifdef PERF
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "run time: " << duration.count() << " ms" << std::endl;
+#endif
     return 0;
 }
 
@@ -158,7 +169,8 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
       }
 #endif // FILE_NUM
     }
-    //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x\n", bg, ba, row, col_9_to_3, col_2_to_0);
+    //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
+    if (*file_index == 2) {*file_index = 1;}
     uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
 
     return index_hex;
@@ -176,20 +188,35 @@ std::queue<MemoryQueues> memory_queues;
 bool finished = false;
 void thread_write_files() {
   MemoryQueues this_memory;
+  std::string buffer[FILE_NUM];
+  for(int i = 0; i < FILE_NUM; i++) {
+    buffer[i].reserve(STREAM_BUFFER_SIZE);
+  }
+
   while (true) {
     if(!finished) {
       std::unique_lock<std::mutex> lock(queue_mutex);
       cv.wait(lock, []{ return !memory_queues.empty() || finished; });
+      if (memory_queues.empty()) continue;
       this_memory = memory_queues.front();
       memory_queues.pop();
     } else {
       this_memory = memory_queues.front();
       memory_queues.pop();
     }
-    //output_files[this_memory.file] << this_memory.str;
-    output_files[this_memory.file] << "@" << this_memory.addr 
-            << " " << std::hex << std::setw(16) << std::setfill('0') << this_memory.data << "\n";
+    std::stringstream ss;
+    ss << "@" << std::hex << this_memory.addr 
+       << " " << std::setw(16) << std::setfill('0') << this_memory.data << std::dec << "\n";
+    buffer[this_memory.file] += ss.str();
+    if (buffer[this_memory.file].size() > STREAM_BUFFER_SIZE) {
+      output_files[this_memory.file] << buffer[this_memory.file];
+      buffer[this_memory.file].clear();
+    }
     if (finished && memory_queues.empty()) {
+      for (size_t i = 0; i < FILE_NUM; i++) {
+        if (buffer[i].size() > 0)
+          output_files[i] << buffer[i];
+      }
       return;  
     }
   }
