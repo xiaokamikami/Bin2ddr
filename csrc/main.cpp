@@ -171,7 +171,10 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
 #endif // FILE_NUM
     }
     //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
-    if (*file_index == 2) {*file_index = 1;}
+    if (*file_index > FILE_NUM) {
+      printf("debug: file_inde > FILE_NUM \n");
+      assert(0);
+    }
     uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
 
     return index_hex;
@@ -186,7 +189,7 @@ struct MemoryQueues {
 std::queue<MemoryQueues> memory_queues[FILE_NUM];
 
 bool finished = false;
-void thread_write_files(int ch) {
+void thread_write_files(const int ch) {
   MemoryQueues this_memory;
   std::string buffer;
   buffer.reserve(STREAM_BUFFER_SIZE);
@@ -194,16 +197,26 @@ void thread_write_files(int ch) {
 
   while (true) {
     if(!finished) {
-      std::unique_lock<std::mutex> lock(queue_mutex[ch]);
-      cv[ch].wait(lock, [ch]{ return !memory_queues[ch].empty() || finished;});
-      this_memory = memory_queues[ch].front();
-      memory_queues[ch].pop();
+      {
+        std::unique_lock<std::mutex> lock(queue_mutex[ch]);
+        cv[ch].wait(lock, [ch]{ return !memory_queues[ch].empty() || finished;});
+        if (!memory_queues[ch].empty()) {
+          this_memory = memory_queues[ch].front();
+          memory_queues[ch].pop();
+        }
+      }
+      int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+      buffer.append(temp, len);
     } else {
-      this_memory = memory_queues[ch].front();
-      memory_queues[ch].pop();
+      if (!memory_queues[ch].empty()) {
+        this_memory = memory_queues[ch].front();
+        memory_queues[ch].pop();
+        int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+        buffer.append(temp, len);
+      }
     }
-    int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
-    buffer.append(temp, len);
+
+
     if (buffer.size() > STREAM_BUFFER_SIZE) {
       output_files[ch] << buffer;
       buffer.clear();
@@ -318,7 +331,10 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
       finished = true;
       for (size_t i = 0; i < FILE_NUM; i++) {
         cv[i].notify_one();
-        consumer_thread[i].join();
+      }
+      for (size_t i = 0; i < FILE_NUM; i++) {
+        if (consumer_thread[i].joinable())
+          consumer_thread[i].join();
       }
     }
     return index;
