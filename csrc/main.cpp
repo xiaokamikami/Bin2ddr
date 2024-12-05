@@ -34,7 +34,7 @@ bool out_raw = false;
 char *file_ram = NULL;
 char *base_out_file = NULL;
 uint32_t gcpt_over_size = 1024 * 1024 -1;
-uint64_t *temp_ram =NULL;
+uint64_t *raw2_ram[MAX_FILE] = {};
 
 void set_ddrmap();
 
@@ -194,36 +194,47 @@ void thread_write_files(const int ch) {
   buffer.reserve(STREAM_BUFFER_SIZE);
   char temp[64];
 
-  while (true) {
-    if(!finished) {
-      {
-        std::unique_lock<std::mutex> lock(queue_mutex[ch]);
-        cv[ch].wait(lock, [ch]{ return !memory_queues[ch].empty() || finished;});
+  if (out_raw) {
+    std::unique_lock<std::mutex> lock(queue_mutex[ch]);
+    cv[ch].wait(lock);
+    printf("strat write \n");
+    for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
+      uint64_t data_byte = *(raw2_ram[ch] + i);
+      output_files[ch].write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
+    }
+    return;
+  } else {
+    while (true) {
+      if(!finished) {
+        {
+          std::unique_lock<std::mutex> lock(queue_mutex[ch]);
+          cv[ch].wait(lock, [ch]{ return !memory_queues[ch].empty() || finished;});
+          if (!memory_queues[ch].empty()) {
+            this_memory = memory_queues[ch].front();
+            memory_queues[ch].pop();
+          }
+        }
+        int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+        buffer.append(temp, len);
+      } else {
         if (!memory_queues[ch].empty()) {
           this_memory = memory_queues[ch].front();
           memory_queues[ch].pop();
+          int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+          buffer.append(temp, len);
         }
       }
-      int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
-      buffer.append(temp, len);
-    } else {
-      if (!memory_queues[ch].empty()) {
-        this_memory = memory_queues[ch].front();
-        memory_queues[ch].pop();
-        int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
-        buffer.append(temp, len);
-      }
-    }
 
-    if (buffer.size() > STREAM_BUFFER_SIZE) {
-      output_files[ch] << buffer;
-      buffer.clear();
-    }
-
-    if (finished && memory_queues[ch].empty()) {
-      if (buffer.size() > 0)
+      if (buffer.size() > STREAM_BUFFER_SIZE) {
         output_files[ch] << buffer;
-      return;  
+        buffer.clear();
+      }
+
+      if (finished && memory_queues[ch].empty()) {
+        if (buffer.size() > 0)
+          output_files[ch] << buffer;
+        return;  
+      }
     }
   }
 }
@@ -254,14 +265,10 @@ uint64_t mem_out_raw2() {
         printf("addr map over size %ld\n", GB_8_SIZE);
       }
       // input temp map RAM
-      *(temp_ram + addr_map) = data_byte;
+      *(raw2_ram[file_index] + addr_map) = data_byte;
     }
   }
   printf("addr map ok\n");
-  for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
-    uint64_t data_byte = *(temp_ram + i);
-    output_files[0].write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
-  }
   return 0;
 }
 
@@ -300,32 +307,30 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
           index ++;
         }
       }
-    } else if (out_raw) {
-      // out raw2
-#if (need_files > 1)
-      printf("The export of raw2 does not support multi-channel and multi-rank for the time being\n");
-      assert(0);
-#endif // need_files
-      temp_ram = (uint64_t *)malloc(GB_8_SIZE);
-      mem_out_raw2();
-      return img_size;
     } else {
       // Start a consumer thread to write to the file
       std::thread consumer_thread[need_files];
       for (size_t i = 0; i < need_files; i++){   
         consumer_thread[i] = std::thread(thread_write_files, i);
       }
-      while (1) {
-        // out dat
-        if (rd_addr > img_size) {
-          printf("ram read addr over img size \n");
-          break;
+      if (out_raw) {
+        for (size_t i = 0; i < need_files; i++) {
+          raw2_ram[i] = (uint64_t *)malloc(GB_8_SIZE);
         }
-        mem_out_hex(rd_addr, index);
-        rd_addr += 1;
-        index += 1;
-      }
-
+        mem_out_raw2();
+        index = img_size;
+      } else {
+        while (1) {
+          // out dat
+          if (rd_addr > img_size) {
+            printf("ram read addr over img size \n");
+            break;
+          }
+          mem_out_hex(rd_addr, index);
+          rd_addr += 1;
+          index += 1;
+        }
+    }
       finished = true;
       for (size_t i = 0; i < need_files; i++) {
         cv[i].notify_one();
