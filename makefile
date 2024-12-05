@@ -9,13 +9,19 @@ INCDIR = ./include/
 OBJDIR = ./obj/  
 
 CHANNEL ?= 1
-RANK ?=1
-FILE_NUM := $(shell echo $$(( $(CHANNEL) * $(RANK) )))
+RANK ?= 1
 
 ifeq ($(PERF), 1)
 CXXFLAGS += -DPERF
 endif
-CXXFLAGS += -DFILE_NUM=$(FILE_NUM)
+ifneq ($(MAX_FILE),)
+CXXFLAGS += -DMAX_FILE=$(MAX_FILE)
+else
+CXXFLAGS += -DMAX_FILE=4
+endif
+
+CXXFLAGS += -DCONFIG_CHANNEL=$(CHANNEL)
+CXXFLAGS += -DCONFIG_RANK=$(RANK)
 
 LDFLAGS =-L. -lz -lzstd
 # 使用 -I 选项指定头文件搜索路径  

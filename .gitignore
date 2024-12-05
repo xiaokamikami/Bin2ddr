@@ -1,6 +1,7 @@
 bin2addr
 *.dat
 *.raw2
+*.memh
 *.gz
 *.zstd
 settings.json

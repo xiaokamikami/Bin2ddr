@@ -20,16 +20,13 @@
 #define STREAM_BUFFER_SIZE 1024 * 1024 * 128
 #define COMPRESS_SIZE (4 * 1024 * 1024)
 
-#if (FILE_NUM == 1)
+//base addr map
 std::string addr_map = "bg,ba,row,col";
-#else
-std::string addr_map = "ra,row,ba,col,bg,ch";
-#endif
 
 std::string input_file;
 std::string gcpt_file;
 std::string compress_file;
-std::array<std::ofstream, FILE_NUM> output_files;
+std::array<std::ofstream, MAX_FILE> output_files;
 uint64_t base_address = 0;
 uint64_t img_size = 0;
 uint64_t gcpt_size = 0;
@@ -64,7 +61,8 @@ void show_help() {
     exit(0);
 }
 
-int main(int argc,char *argv[]) {
+uint8_t need_files = 0;
+int main(int argc, char *argv[]) {
     int args_pars = 0;
     args_pars = args_parsingniton(argc, argv);
     if (args_pars !=0)
@@ -102,13 +100,7 @@ void set_ddrmap() {
     vector<string> components;
     stringstream ss(addr_map);
     string component;
-
-    printf("out file num %d\n", FILE_NUM);
-    for (size_t i = 0; i < FILE_NUM; i++) {
-      char file_name[128];
-      sprintf(file_name, "%d_%s", i, base_out_file);
-      output_files[i].open(file_name);
-    }
+    bool use_ch, use_ra = false;
 
     printf("use addr map");
     while (std::getline(ss, component, ',')) {
@@ -123,18 +115,25 @@ void set_ddrmap() {
         addr_map_order.row = count;
       else if(component == "col")
         addr_map_order.col = count;
-      else if(component == "ch")
+      else if(component == "ch") {
         addr_map_order.dch = count;
-      else if(component == "ra")
+        use_ch = true;
+      } else if(component == "ra") {
         addr_map_order.ra == count;
-      cout << " " << component << "=" << count;
-#if (FILE_NUM == 1)
-      if ((component == "ch" || component == "ra" )) {
-        cout << "The number of channels is only 1, so the set channel and rank are invalid at this time" << endl;
-        exit(0);
+        use_ra = true;
       }
-#endif // FILE_NUM
+      cout << " " << component << "=" << count;
       addr_map_order.use_size = count;
+    }
+    need_files =  (use_ch * CONFIG_CHANNEL) + (use_ra * CONFIG_RANK);
+    printf("\nout file num %d\n", need_files);
+    for (int idx = 0; idx < need_files; idx++) {
+      char end_name[32];
+      char first_name[32];
+      char file_name[128];
+      sscanf(base_out_file, "%[^.].%s", first_name, end_name);
+      sprintf(file_name, "%s_%d.%s\0", first_name, idx, end_name);
+      output_files[idx].open(file_name);
     }
 }
 
@@ -159,20 +158,20 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
         row = (index & 0xFFFF);
         index = index >> 10;
       }
-#if (FILE_NUM > 1)
-      else if (addr_map_order.dch == i) {
-        *file_index |= (index & 0x1) << 1;
-        index = index >> 1;
+      else if(need_files > 1) {
+        if (addr_map_order.dch == i) {
+          *file_index |= (index & 0x1) << 1;
+          index = index >> 1;
+        }
+        else if (addr_map_order.ra == i) {
+          *file_index |= (index & 0x1);
+          index = index >> 1;
+        }
       }
-      else if (addr_map_order.ra == i) {
-        *file_index |= (index & 0x1);
-        index = index >> 1;
-      }
-#endif // FILE_NUM
     }
     //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
-    if (*file_index > FILE_NUM) {
-      printf("debug: file_inde > FILE_NUM \n");
+    if (*file_index > need_files) {
+      printf("debug: file_inde > need_files \n");
       assert(0);
     }
     uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
@@ -180,13 +179,13 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     return index_hex;
 }
 
-std::mutex queue_mutex[FILE_NUM];
-std::condition_variable cv[FILE_NUM];
+std::mutex queue_mutex[MAX_FILE];
+std::condition_variable cv[MAX_FILE];
 struct MemoryQueues {
   uint64_t data;
   uint64_t addr;
 };
-std::queue<MemoryQueues> memory_queues[FILE_NUM];
+std::queue<MemoryQueues> memory_queues[MAX_FILE];
 
 bool finished = false;
 void thread_write_files(const int ch) {
@@ -216,7 +215,6 @@ void thread_write_files(const int ch) {
       }
     }
 
-
     if (buffer.size() > STREAM_BUFFER_SIZE) {
       output_files[ch] << buffer;
       buffer.clear();
@@ -233,7 +231,7 @@ void thread_write_files(const int ch) {
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
-  if (data_byte != 0 || FILE_NUM > 1) {
+  if (data_byte != 0 || need_files > 1) {
     uint32_t file_index = 0;
     uint64_t addr = calculate_index_hex(index, &file_index);
     {
@@ -248,7 +246,7 @@ uint64_t mem_out_raw2() {
   extern uint64_t *ram;
   for (size_t i = 0; i <= img_size; i++) {
     uint64_t data_byte = *(ram + i);
-    if (data_byte != 0 || FILE_NUM > 1) {
+    if (data_byte != 0 || need_files > 1) {
       data_byte = htobe64(data_byte);
       uint32_t file_index = 0;
       uint64_t addr_map = calculate_index_hex(i, &file_index);
@@ -304,17 +302,17 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
       }
     } else if (out_raw) {
       // out raw2
-#if (FILE_NUM > 1)
+#if (need_files > 1)
       printf("The export of raw2 does not support multi-channel and multi-rank for the time being\n");
       assert(0);
-#endif // FILE_NUM
+#endif // need_files
       temp_ram = (uint64_t *)malloc(GB_8_SIZE);
       mem_out_raw2();
       return img_size;
     } else {
       // Start a consumer thread to write to the file
-      std::thread consumer_thread[FILE_NUM];
-      for (size_t i = 0; i < FILE_NUM; i++){   
+      std::thread consumer_thread[need_files];
+      for (size_t i = 0; i < need_files; i++){   
         consumer_thread[i] = std::thread(thread_write_files, i);
       }
       while (1) {
@@ -329,10 +327,10 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
       }
 
       finished = true;
-      for (size_t i = 0; i < FILE_NUM; i++) {
+      for (size_t i = 0; i < need_files; i++) {
         cv[i].notify_one();
       }
-      for (size_t i = 0; i < FILE_NUM; i++) {
+      for (size_t i = 0; i < need_files; i++) {
         if (consumer_thread[i].joinable())
           consumer_thread[i].join();
       }
