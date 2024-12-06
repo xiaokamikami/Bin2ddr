@@ -29,12 +29,12 @@ std::string compress_file;
 std::array<std::ofstream, MAX_FILE> output_files;
 uint64_t base_address = 0;
 uint64_t img_size = 0;
-uint64_t gcpt_size = 0;
 bool out_raw = false;
-char *file_ram = NULL;
 char *base_out_file = NULL;
 uint32_t gcpt_over_size = 1024 * 1024 -1;
 uint64_t *raw2_ram[MAX_FILE] = {};
+uint64_t channel_num = 1;
+uint64_t rank_num = 1;
 
 void set_ddrmap();
 
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     printf("\nstart load ram\n");
     img_size = load_img(input_file.c_str()) / UINT64_SIZE;
     if (!gcpt_file.empty()) {
-      gcpt_size = override_ram(gcpt_file.c_str(), gcpt_over_size);
+      uint64_t gcpt_size = override_ram(gcpt_file.c_str(), gcpt_over_size);
       printf("Overwrite %d bytes from file%s\n", gcpt_size, gcpt_file.c_str());
     }
 
@@ -100,7 +100,6 @@ void set_ddrmap() {
     vector<string> components;
     stringstream ss(addr_map);
     string component;
-    bool use_ch, use_ra = false;
 
     printf("use addr map");
     while (std::getline(ss, component, ',')) {
@@ -115,17 +114,14 @@ void set_ddrmap() {
         addr_map_order.row = count;
       else if(component == "col")
         addr_map_order.col = count;
-      else if(component == "ch") {
+      else if(component == "ch")
         addr_map_order.dch = count;
-        use_ch = true;
-      } else if(component == "ra") {
+      else if(component == "ra")
         addr_map_order.ra == count;
-        use_ra = true;
-      }
       cout << " " << component << "=" << count;
       addr_map_order.use_size = count;
     }
-    need_files =  (use_ch * CONFIG_CHANNEL) + (use_ra * CONFIG_RANK);
+    need_files =  channel_num * rank_num;
     printf("\nout file num %d\n", need_files);
     for (int idx = 0; idx < need_files; idx++) {
       char end_name[32];
@@ -170,8 +166,11 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
       }
     }
     //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
-    if (*file_index > need_files) {
-      printf("debug: file_inde > need_files \n");
+    if (need_files == 2 && *file_index == 2) {
+      *file_index = 1;
+    }
+    if (*file_index >= need_files) {
+      printf("debug: file_index > need_files %d \n", *file_index);
       assert(0);
     }
     uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
@@ -275,6 +274,10 @@ uint64_t mem_out_raw2() {
 //write perload
 uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string& compress) {
     printf("start mem preload\n");
+    if (base_address > img_size) {
+      printf("ram base_address over img size \n");
+      assert(0);
+    }
     uint64_t rd_addr = 0;
     uint64_t index = base_address;
 
@@ -320,12 +323,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
         mem_out_raw2();
         index = img_size;
       } else {
-        while (1) {
-          // out dat
-          if (rd_addr > img_size) {
-            printf("ram read addr over img size \n");
-            break;
-          }
+        while (rd_addr <= img_size) {
           mem_out_hex(rd_addr, index);
           rd_addr += 1;
           index += 1;
@@ -394,6 +392,13 @@ int args_parsingniton(int argc,char *argv[]) {
       } else {
         return args_error("baseaddress");
       }
+    }
+    else if (strcmp(argv[i], "--rank") == 0) {
+      if (i + 1 < argc)
+        rank_num = std::stoul(argv[++i], nullptr, 16);
+    } else if (strcmp(argv[i], "--channel") == 0) {
+      if (i + 1 < argc)
+        channel_num = std::stoul(argv[++i], nullptr, 16);
     } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--compress") == 0) {
       if (i + 1 < argc) {
         compress_file = argv[++i];

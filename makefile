@@ -20,9 +20,6 @@ else
 CXXFLAGS += -DMAX_FILE=4
 endif
 
-CXXFLAGS += -DCONFIG_CHANNEL=$(CHANNEL)
-CXXFLAGS += -DCONFIG_RANK=$(RANK)
-
 LDFLAGS =-L. -lz -lzstd
 # 使用 -I 选项指定头文件搜索路径  
 CPPFLAGS = -I$(INCDIR)  
