@@ -274,10 +274,7 @@ uint64_t mem_out_raw2() {
 //write perload
 uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string& compress) {
     printf("start mem preload\n");
-    if (base_address > img_size) {
-      printf("ram base_address over img size \n");
-      assert(0);
-    }
+
     uint64_t rd_addr = 0;
     uint64_t index = base_address;
 
@@ -389,6 +386,7 @@ int args_parsingniton(int argc,char *argv[]) {
     } else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--baseaddress") == 0) {
       if (i + 1 < argc) {
         base_address = std::stoul(argv[++i], nullptr, 16);
+        printf("set baseaddress %lx\n", base_address);
       } else {
         return args_error("baseaddress");
       }
