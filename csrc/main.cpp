@@ -114,10 +114,13 @@ void set_ddrmap() {
         addr_map_order.row = count;
       else if(component == "col")
         addr_map_order.col = count;
-      else if(component == "ch")
+      else if(component == "ch") {
+        channel_num = 2;
         addr_map_order.dch = count;
-      else if(component == "ra")
+      } else if(component == "ra") {
+        rank_num = 2;
         addr_map_order.ra == count;
+      }
       cout << " " << component << "=" << count;
       addr_map_order.use_size = count;
     }
@@ -391,13 +394,7 @@ int args_parsingniton(int argc,char *argv[]) {
         return args_error("baseaddress");
       }
     }
-    else if (strcmp(argv[i], "--rank") == 0) {
-      if (i + 1 < argc)
-        rank_num = std::stoul(argv[++i], nullptr, 16);
-    } else if (strcmp(argv[i], "--channel") == 0) {
-      if (i + 1 < argc)
-        channel_num = std::stoul(argv[++i], nullptr, 16);
-    } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--compress") == 0) {
+    else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--compress") == 0) {
       if (i + 1 < argc) {
         compress_file = argv[++i];
       } else {
