@@ -91,8 +91,11 @@ int main(int argc, char *argv[]) {
 }
 
 inline uint64_t construct_index_remp(uint32_t bg, uint32_t ba, uint32_t row, 
-                                 uint32_t col_9_to_3, uint32_t col_2_to_0) {
-  return (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
+                                 uint32_t col_9_to_3, uint32_t col_2_to_0, uint32_t ch) {    
+  if (channel_num > 1)
+    return (bg << 29) | (ba << 27) | (row << 11) | (col_9_to_3 << 4) | (col_2_to_0 << 1) | ch;
+  else
+    return (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
 }
 
 void set_ddrmap() {
@@ -141,7 +144,7 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     // basic col [2:0]
     uint32_t col_2_to_0 = index & 0x7;
     index = index >> 3;
-    uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0;
+    uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0,dch = 0;
 
     for (int i = addr_map_order.use_size; i > 0; i--) {
       if (addr_map_order.ba == i) {
@@ -156,19 +159,16 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
       } else if (addr_map_order.row == i) {
         row = (index & 0xFFFF);
         index = index >> 10;
-      }
-      else if(need_files > 1) {
-        if (addr_map_order.dch == i) {
-          *file_index |= (index & 0x1) << 1;
-          index = index >> 1;
-        }
-        else if (addr_map_order.ra == i) {
-          *file_index |= (index & 0x1);
-          index = index >> 1;
-        }
+      } else if (channel_num != 1 && addr_map_order.dch == i) {
+        dch = (index & 0x1);
+        *file_index |= dch << 1;
+        index = index >> 1;
+      } else if (rank_num != 1 && addr_map_order.ra == i) {
+        *file_index |= (index & 0x1);
+        index = index >> 1;
       }
     }
-    //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
+    printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
     if (need_files == 2 && *file_index == 2) {
       *file_index = 1;
     }
@@ -176,7 +176,7 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
       printf("debug: file_index > need_files %d \n", *file_index);
       assert(0);
     }
-    uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0);
+    uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0, dch);
 
     return index_hex;
 }
