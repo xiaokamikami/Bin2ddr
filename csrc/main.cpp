@@ -217,10 +217,10 @@ void thread_write_files(const int ch) {
           if (!memory_queues[ch].empty()) {
             this_memory = memory_queues[ch].front();
             memory_queues[ch].pop();
+            int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+            buffer.append(temp, len);
           }
         }
-        int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
-        buffer.append(temp, len);
       } else {
         if (!memory_queues[ch].empty()) {
           this_memory = memory_queues[ch].front();
@@ -230,7 +230,7 @@ void thread_write_files(const int ch) {
         }
       }
 
-      if (buffer.size() > STREAM_BUFFER_SIZE) {
+      if (buffer.length() > STREAM_BUFFER_SIZE) {
         output_files[ch] << buffer;
         buffer.clear();
       }
