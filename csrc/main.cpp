@@ -30,6 +30,7 @@ std::array<std::ofstream, MAX_FILE> output_files;
 uint64_t base_address = 0;
 uint64_t img_size = 0;
 bool out_raw = false;
+bool split_rank = false;
 char *base_out_file = NULL;
 uint32_t gcpt_over_size = 1024 * 1024 -1;
 uint64_t *raw2_ram[MAX_FILE] = {};
@@ -56,6 +57,7 @@ void show_help() {
     cout << "  -c, --compress            Specify the use nemu compress checkpoint" << endl;
     cout << "  -r, --restore             Specify the gcpt-restore cover checkpoint" << endl; 
     cout << "  --raw2                    Specify the use raw2 fomat out file" << endl;
+    cout << "  --split_rank              Split the rank in a ch into different files" << endl;
     cout << "  --overrid                 Reset the size of using the length flag in gcpt_restore" << endl;
     cout << "  -h, --help                Show this help message" << endl;
     exit(0);
@@ -91,9 +93,9 @@ int main(int argc, char *argv[]) {
 }
 
 inline uint64_t construct_index_remp(uint32_t bg, uint32_t ba, uint32_t row, 
-                                 uint32_t col_9_to_3, uint32_t col_2_to_0, uint32_t ch) {    
-  if (channel_num > 1)
-    return (bg << 29) | (ba << 27) | (row << 11) | (col_9_to_3 << 4) | (col_2_to_0 << 1) | ch;
+                                 uint32_t col_9_to_3, uint32_t col_2_to_0, uint32_t rank) {
+  if (split_rank == true && rank_num > 1)
+    return (rank << 29) | (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
   else
     return (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
 }
@@ -144,7 +146,7 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     // basic col [2:0]
     uint32_t col_2_to_0 = index & 0x7;
     index = index >> 3;
-    uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0,dch = 0;
+    static uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0, dch = 0,rank = 0;
 
     for (int i = addr_map_order.use_size; i > 0; i--) {
       if (addr_map_order.ba == i) {
@@ -164,11 +166,12 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
         *file_index |= dch << 1;
         index = index >> 1;
       } else if (rank_num != 1 && addr_map_order.ra == i) {
+        rank = (index & 0x1);
         *file_index |= (index & 0x1);
         index = index >> 1;
       }
     }
-    printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
+    //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
     if (need_files == 2 && *file_index == 2) {
       *file_index = 1;
     }
@@ -176,7 +179,7 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
       printf("debug: file_index > need_files %d \n", *file_index);
       assert(0);
     }
-    uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0, dch);
+    uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0, rank);
 
     return index_hex;
 }
@@ -402,6 +405,8 @@ int args_parsingniton(int argc,char *argv[]) {
       }
     } else if (strcmp(argv[i], "--raw2") == 0) {
       out_raw = true;
+    } else if (strcmp(argv[i], "--split_rank") == 0) {
+      split_rank = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       show_help();
     } else {
