@@ -129,7 +129,7 @@ void set_ddrmap() {
       cout << " " << component << "=" << count;
       addr_map_order.use_size = count;
     }
-    need_files =  channel_num * rank_num;
+    need_files =  channel_num * (split_rank ? rank_num : 1);
     printf("\nout file num %d\n", need_files);
     for (int idx = 0; idx < need_files; idx++) {
       char end_name[32];
@@ -160,7 +160,7 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
         index = index >> 7;
       } else if (addr_map_order.row == i) {
         row = (index & 0xFFFF);
-        index = index >> 10;
+        index = index >> 16;
       } else if (channel_num != 1 && addr_map_order.dch == i) {
         dch = (index & 0x1);
         *file_index |= dch << 1;
@@ -260,7 +260,7 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
 
 uint64_t mem_out_raw2() {
   extern uint64_t *ram;
-  for (size_t i = 0; i <= img_size; i++) {
+  for (size_t i = 0; i < img_size; i++) {
     uint64_t data_byte = *(ram + i);
     if (data_byte != 0 || need_files > 1) {
       data_byte = htobe64(data_byte);
@@ -282,7 +282,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
     printf("start mem preload\n");
 
     uint64_t rd_addr = 0;
-    uint64_t index = base_address;
+    uint64_t index = base_address >> 3;
 
     bool use_compress = (!compress.empty());
     FILE *compress_fd = NULL;
@@ -326,7 +326,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
         mem_out_raw2();
         index = img_size;
       } else {
-        while (rd_addr <= img_size) {
+        while (rd_addr < img_size) {
           mem_out_hex(rd_addr, index);
           rd_addr += 1;
           index += 1;
