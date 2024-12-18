@@ -257,7 +257,9 @@ void thread_write_files(const int ch) {
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
-  //if (data_byte != 0 || need_files > 1) {
+#ifdef RM_ZERO
+  if (data_byte != 0 || need_files > 1) {
+#endif // RM_ZERO
     uint32_t file_index = 0;
     uint64_t addr = calculate_index_hex(index, &file_index);
     {
@@ -265,14 +267,16 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
       memory_queues[file_index].push({data_byte, addr});
     }
     cv[file_index].notify_one();
-  //}
+#ifdef RM_ZERO
+  }
+#endif // RM_ZERO
 }
 
 uint64_t mem_out_raw2() {
   extern uint64_t *ram;
   for (size_t i = 0; i < img_size; i++) {
     uint64_t data_byte = *(ram + i);
-    if (data_byte != 0 || need_files > 1) {
+    if (data_byte != 0) {
       data_byte = htobe64(data_byte);
       uint32_t file_index = 0;
       uint64_t addr_map = calculate_index_hex(i, &file_index);
