@@ -57,7 +57,7 @@ void show_help() {
     cout << "  -c, --compress            Specify the use nemu compress checkpoint" << endl;
     cout << "  -r, --restore             Specify the gcpt-restore cover checkpoint" << endl; 
     cout << "  --raw2                    Specify the use raw2 fomat out file" << endl;
-    cout << "  --split_rank              Split the rank in a ch into different files" << endl;
+    cout << "  -s, --split_rank          Split the rank in a ch into different files" << endl;
     cout << "  --overrid                 Reset the size of using the length flag in gcpt_restore" << endl;
     cout << "  -h, --help                Show this help message" << endl;
     exit(0);
@@ -94,8 +94,8 @@ int main(int argc, char *argv[]) {
 
 inline uint64_t construct_index_remp(uint32_t bg, uint32_t ba, uint32_t row, 
                                  uint32_t col_9_to_3, uint32_t col_2_to_0, uint32_t rank) {
-  if (split_rank == true && rank_num > 1)
-    return (rank << 29) | (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
+  if (split_rank == false && rank_num > 1)
+    return (rank << 30) | (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
   else
     return (bg << 28) | (ba << 26) | (row << 10) | (col_9_to_3 << 3) | col_2_to_0;
 }
@@ -124,21 +124,26 @@ void set_ddrmap() {
         addr_map_order.dch = count;
       } else if(component == "ra") {
         rank_num = 2;
-        addr_map_order.ra == count;
+        addr_map_order.ra = count;
       }
       cout << " " << component << "=" << count;
       addr_map_order.use_size = count;
     }
     need_files =  channel_num * (split_rank ? rank_num : 1);
     printf("\nout file num %d\n", need_files);
-    for (int idx = 0; idx < need_files; idx++) {
-      char end_name[32];
-      char first_name[32];
-      char file_name[128];
-      sscanf(base_out_file, "%[^.].%s", first_name, end_name);
-      sprintf(file_name, "%s_%d.%s\0", first_name, idx, end_name);
-      output_files[idx].open(file_name);
+    if (need_files > 1) {
+      for (int idx = 0; idx < need_files; idx++) {
+        char end_name[32];
+        char first_name[32];
+        char file_name[128];
+        sscanf(base_out_file, "%[^.].%s", first_name, end_name);
+        sprintf(file_name, "%s_%d.%s\0", first_name, idx, end_name);
+        output_files[idx].open(file_name);
+      }
+    } else {
+       output_files[0].open(base_out_file);
     }
+
 }
 
 //get ddr addr
@@ -146,7 +151,7 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     // basic col [2:0]
     uint32_t col_2_to_0 = index & 0x7;
     index = index >> 3;
-    static uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0, dch = 0,rank = 0;
+    static uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0,dch = 0,rank = 0;
 
     for (int i = addr_map_order.use_size; i > 0; i--) {
       if (addr_map_order.ba == i) {
@@ -167,13 +172,18 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
         index = index >> 1;
       } else if (rank_num != 1 && addr_map_order.ra == i) {
         rank = (index & 0x1);
-        *file_index |= (index & 0x1);
+        *file_index |= rank;
         index = index >> 1;
+      } else {
+        printf("Check if there is a map parameter that is not parsed\n");
+        assert(0);
       }
     }
-    //printf("debug bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
+    //printf("debug ra %d bg %x ba %x row %x col_9_to_3 %x col_2_to_0 %x ch %d\n", rank, bg, ba, row, col_9_to_3, col_2_to_0, *file_index);
     if (need_files == 2 && *file_index == 2) {
       *file_index = 1;
+    } else if (need_files == 1) {
+      *file_index = 0;
     }
     if (*file_index >= need_files) {
       printf("debug: file_index > need_files %d \n", *file_index);
@@ -247,7 +257,7 @@ void thread_write_files(const int ch) {
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
-  if (data_byte != 0 || need_files > 1) {
+  //if (data_byte != 0 || need_files > 1) {
     uint32_t file_index = 0;
     uint64_t addr = calculate_index_hex(index, &file_index);
     {
@@ -255,7 +265,7 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
       memory_queues[file_index].push({data_byte, addr});
     }
     cv[file_index].notify_one();
-  }
+  //}
 }
 
 uint64_t mem_out_raw2() {
@@ -405,7 +415,7 @@ int args_parsingniton(int argc,char *argv[]) {
       }
     } else if (strcmp(argv[i], "--raw2") == 0) {
       out_raw = true;
-    } else if (strcmp(argv[i], "--split_rank") == 0) {
+    } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--split_rank") == 0) {
       split_rank = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       show_help();
