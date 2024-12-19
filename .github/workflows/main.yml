@@ -30,7 +30,7 @@ jobs:
 
     - name: Build Master branch
       run: |
-        cd master
+        cd main
         make
         ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg"
 

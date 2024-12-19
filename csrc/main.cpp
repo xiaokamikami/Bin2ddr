@@ -41,7 +41,7 @@ void set_ddrmap();
 
 typedef struct {
   uint8_t bg, ba, row, col;
-  uint8_t dch, ra;
+  uint8_t dch = 0, ra = 0;
   uint8_t use_size;
 }addr_map_info;
 addr_map_info addr_map_order;
@@ -155,7 +155,7 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
 
     for (int i = addr_map_order.use_size; i > 0; i--) {
       if (addr_map_order.ba == i) {
-        ba = (index & 0x3);
+        ba = (index & 0x1);
         index = index >> 2;
       } else if (addr_map_order.bg == i) {
         bg = (index & 0x3);
@@ -166,11 +166,11 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
       } else if (addr_map_order.row == i) {
         row = (index & 0xFFFF);
         index = index >> 16;
-      } else if (channel_num != 1 && addr_map_order.dch == i) {
+      } else if (addr_map_order.dch == i) {
         dch = (index & 0x1);
         *file_index |= dch << 1;
         index = index >> 1;
-      } else if (rank_num != 1 && addr_map_order.ra == i) {
+      } else if (addr_map_order.ra == i) {
         rank = (index & 0x1);
         *file_index |= rank;
         index = index >> 1;
