@@ -32,16 +32,14 @@ jobs:
         cd main
         make
 
-    - name: Test "ra,row,ba,col,bg"
+    - name: Compare Test "ra,row,ba,col,bg"
       run: |
         cd $GITHUB_WORKSPACE
         ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg"
         cd main
         ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg"
 
-    - name: Compare outputs
-      run: |
-        diff <(md5sum pr.txt) <(md5sum main.txt)
+        diff <(md5sum pr.bin) <(md5sum main.bin)
         if [ $? -ne 0 ]; then
           echo "Output differs from main"
           exit 1
@@ -49,3 +47,32 @@ jobs:
           echo "Output is the same as main"
         fi
 
+    - name: Compare Test "ra,row,ba,col,bg,ch"
+      run: |
+        cd $GITHUB_WORKSPACE
+        ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg,ch"
+        cd main
+        ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg,ch"
+
+        diff <(md5sum pr_1.bin) <(md5sum main_1.bin)
+        if [ $? -ne 0 ]; then
+          echo "Output differs from main"
+          exit 1
+        else
+          echo "Output is the same as main"
+        fi
+
+    - name: Compare Test "ra,row,ba,col,bg,ch" -s
+      run: |
+          cd $GITHUB_WORKSPACE
+          ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg,ch" -s
+          cd main
+          ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg,ch" -s
+  
+          diff <(md5sum pr_2.bin) <(md5sum main_2.bin)
+          if [ $? -ne 0 ]; then
+            echo "Output differs from main"
+            exit 1
+          else
+            echo "Output is the same as main"
+          fi
