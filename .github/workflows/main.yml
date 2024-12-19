@@ -15,7 +15,7 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
-    - name: Checkout Master branch
+    - name: Checkout Main branch
       uses: actions/checkout@v2
       with:
         repository: ${{ github.repository }}
@@ -26,21 +26,61 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE
         make
-        ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg"
 
-    - name: Build Master branch
+    - name: Build Main branch
       run: |
         cd main
         make
+
+    - name: Compare Test "ra,row,ba,col,bg"
+      run: |
+        cd $GITHUB_WORKSPACE
+        ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg"
+        cd main
         ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg"
 
-    - name: Compare outputs
-      run: |
-        diff <(md5sum pr.txt) <(md5sum main.txt)
-        if [ $? -ne 0 ]; then
+        PR_MD5=$(md5sum $GITHUB_WORKSPACE/pr.bin | awk '{print $1}')
+        MAIN_MD5=$(md5sum main.bin | awk '{print $1}')
+        if [ "$PR_MD5" != "$MAIN_MD5" ]; then
+          echo "PR MD5: $PR_MD5"
+          echo "Master MD5: $MAIN_MD5"
           echo "Output differs from main"
           exit 1
         else
           echo "Output is the same as main"
         fi
 
+    - name: Compare Test "ra,row,ba,col,bg,ch"
+      run: |
+        $GITHUB_WORKSPACE/bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg,ch"
+        cd main
+        ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg,ch"
+
+        PR_MD5=$(md5sum $GITHUB_WORKSPACE/pr_1.bin | awk '{print $1}')
+        MAIN_MD5=$(md5sum main_1.bin | awk '{print $1}')
+        if [ "$PR_MD5" != "$MAIN_MD5" ]; then
+          echo "PR MD5: $PR_MD5"
+          echo "Master MD5: $MAIN_MD5"
+          echo "Output differs from main"
+          exit 1
+        else
+          echo "Output is the same as main"
+        fi
+
+    - name: Compare Test "ra,row,ba,col,bg,ch" -s
+      run: |
+          cd $GITHUB_WORKSPACE
+          ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg,ch" -s
+          cd main
+          ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg,ch" -s
+
+          PR_MD5=$(md5sum $GITHUB_WORKSPACE/pr_3.bin | awk '{print $1}')
+          MAIN_MD5=$(md5sum main_3.bin | awk '{print $1}')
+          if [ "$PR_MD5" != "$MAIN_MD5" ]; then
+            echo "PR MD5: $PR_MD5"
+            echo "Master MD5: $MAIN_MD5"
+            echo "Output differs from main"
+            exit 1
+          else
+            echo "Output is the same as main"
+          fi
