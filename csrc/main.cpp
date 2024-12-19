@@ -313,7 +313,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
         // out compress dat
         if (feof(compress_fd))
           break;
-        if (fscanf(compress_fd, "%d", &rd_addr) != 1)
+        if (fscanf(compress_fd, "%ld", &rd_addr) != 1)
           break;
         rd_addr = rd_addr * COMPRESS_SIZE / UINT64_SIZE;
         if (rd_addr >= img_size) {
