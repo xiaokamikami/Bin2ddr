@@ -15,7 +15,7 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
-    - name: Checkout Master branch
+    - name: Checkout Main branch
       uses: actions/checkout@v2
       with:
         repository: ${{ github.repository }}
@@ -26,12 +26,17 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE
         make
-        ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg"
 
-    - name: Build Master branch
+    - name: Build Main branch
       run: |
         cd main
         make
+
+    - name: Test "ra,row,ba,col,bg"
+      run: |
+        cd $GITHUB_WORKSPACE
+        ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg"
+        cd main
         ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg"
 
     - name: Compare outputs
