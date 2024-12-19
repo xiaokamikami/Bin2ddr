@@ -14,6 +14,9 @@ RANK ?= 1
 ifeq ($(PERF), 1)
 CXXFLAGS += -DPERF
 endif
+ifeq ($(RM_ZERO), 1)
+CXXFLAGS += -DRM_ZERO
+endif
 ifneq ($(MAX_FILE),)
 CXXFLAGS += -DMAX_FILE=$(MAX_FILE)
 else
