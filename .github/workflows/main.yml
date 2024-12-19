@@ -1,0 +1,46 @@
+name: Compare PR with Main
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout PR branch
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Checkout Master branch
+      uses: actions/checkout@v2
+      with:
+        repository: ${{ github.repository }}
+        ref: master
+        path: master
+
+    - name: Build PR branch
+      run: |
+        cd $GITHUB_WORKSPACE
+        make
+        ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg"
+
+    - name: Build Master branch
+      run: |
+        cd master
+        make
+        ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg"
+
+    - name: Compare outputs
+      run: |
+        diff <(md5sum pr.txt) <(md5sum main.txt)
+        if [ $? -ne 0 ]; then
+          echo "Output differs from main"
+          exit 1
+        else
+          echo "Output is the same as main"
+        fi
+
