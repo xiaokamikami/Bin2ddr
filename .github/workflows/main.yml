@@ -39,8 +39,11 @@ jobs:
         cd main
         ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg"
 
-        diff <(md5sum pr.bin) <(md5sum main.bin)
-        if [ $? -ne 0 ]; then
+        PR_MD5=$(md5sum $GITHUB_WORKSPACE/pr.bin | awk '{print $1}')
+        MAIN_MD5=$(md5sum main.bin | awk '{print $1}')
+        if [ "$PR_MD5" != "$MAIN_MD5" ]; then
+          echo "PR MD5: $PR_MD5"
+          echo "Master MD5: $MAIN_MD5"
           echo "Output differs from main"
           exit 1
         else
@@ -49,13 +52,15 @@ jobs:
 
     - name: Compare Test "ra,row,ba,col,bg,ch"
       run: |
-        cd $GITHUB_WORKSPACE
-        ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg,ch"
+        $GITHUB_WORKSPACE/bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg,ch"
         cd main
         ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg,ch"
 
-        diff <(md5sum pr_1.bin) <(md5sum main_1.bin)
-        if [ $? -ne 0 ]; then
+        PR_MD5=$(md5sum $GITHUB_WORKSPACE/pr_1.bin | awk '{print $1}')
+        MAIN_MD5=$(md5sum main_1.bin | awk '{print $1}')
+        if [ "$PR_MD5" != "$MAIN_MD5" ]; then
+          echo "PR MD5: $PR_MD5"
+          echo "Master MD5: $MAIN_MD5"
           echo "Output differs from main"
           exit 1
         else
@@ -68,9 +73,12 @@ jobs:
           ./bin2ddr -i ready-to-run/int-gcpt.bin -o pr.bin -m "ra,row,ba,col,bg,ch" -s
           cd main
           ./bin2ddr -i ready-to-run/int-gcpt.bin -o main.bin -m "ra,row,ba,col,bg,ch" -s
-  
-          diff <(md5sum pr_2.bin) <(md5sum main_2.bin)
-          if [ $? -ne 0 ]; then
+
+          PR_MD5=$(md5sum $GITHUB_WORKSPACE/pr_3.bin | awk '{print $1}')
+          MAIN_MD5=$(md5sum main_3.bin | awk '{print $1}')
+          if [ "$PR_MD5" != "$MAIN_MD5" ]; then
+            echo "PR MD5: $PR_MD5"
+            echo "Master MD5: $MAIN_MD5"
             echo "Output differs from main"
             exit 1
           else
