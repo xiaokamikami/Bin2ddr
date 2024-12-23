@@ -1,1 +1,0 @@
-./riscv64-nemu-interpreter -b --restore ../test/int/bzip2_15233_0.119528_.gz   -I 40000000 --mem_use_record_file ../out/compress-out.txt
