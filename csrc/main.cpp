@@ -396,7 +396,8 @@ int args_parsingniton(int argc,char *argv[]) {
       gcpt_over_size = data;
       printf("reset gcpt over size %d  hex:%x\n", gcpt_over_size, gcpt_over_size);
     } else if (strcmp(argv[i], "--overrid") == 0) {
-      sscanf(argv[++i],"%u", &gcpt_over_size);
+      gcpt_over_size = std::stoul(argv[++i], nullptr, 16);
+      printf("set gcpt_over_size %lx\n", gcpt_over_size);
     } else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--addrmap") == 0) {
       if (i + 1 < argc) {
         addr_map = argv[++i];

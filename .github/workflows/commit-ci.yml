@@ -42,12 +42,9 @@ jobs:
         PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit.bin | awk '{print $1}')
         CI_MD5=$(md5sum CI.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5"
-          echo "Master MD5: $CI_MD5"
+          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
-        else
-          echo "Output is the same as CI"
         fi
 
     - name: Compare Test "ra,row,ba,col,bg,ch"
@@ -59,12 +56,9 @@ jobs:
         PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_1.bin | awk '{print $1}')
         CI_MD5=$(md5sum CI_1.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5"
-          echo "Master MD5: $CI_MD5"
+          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
-        else
-          echo "Output is the same as CI"
         fi
 
     - name: Compare Test "ra,row,ba,col,bg,ch" -s
@@ -77,10 +71,22 @@ jobs:
           PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_3.bin | awk '{print $1}')
           CI_MD5=$(md5sum CI_3.bin | awk '{print $1}')
           if [ "$PR_MD5" != "$CI_MD5" ]; then
-            echo "PR MD5: $PR_MD5"
-            echo "Master MD5: $CI_MD5"
+            echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
             echo "Output differs from CI"
             exit 1
-          else
-            echo "Output is the same as CI"
+          fi
+
+    - name: Compare Test "ra,row,ba,col,bg,ch" -s of zstd
+      run: |
+          cd $GITHUB_WORKSPACE
+          ./bin2ddr -i ready-to-run/hmmer_nph3.zstd -r ready-to-run/int-gcpt.bin --overrid 0xe00 -o commit.bin -m "ra,row,ba,col,bg,ch" -s
+          cd CI
+          ./bin2ddr -i ready-to-run/hmmer_nph3.zstd -r ready-to-run/int-gcpt.bin --overrid 0xe00 -o CI.bin -m "ra,row,ba,col,bg,ch" -s
+
+          PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_3.bin | awk '{print $1}')
+          CI_MD5=$(md5sum CI_3.bin | awk '{print $1}')
+          if [ "$PR_MD5" != "$CI_MD5" ]; then
+            echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
+            echo "Output differs from CI"
+            exit 1
           fi
