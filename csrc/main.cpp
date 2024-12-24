@@ -17,7 +17,7 @@
 #ifdef PERF
 #include <chrono>
 #endif
-#define STREAM_BUFFER_SIZE 1024 * 1024 * 128
+#define STREAM_BUFFER_SIZE 1024 * 1024 * 256
 #define COMPRESS_SIZE (4 * 1024 * 1024)
 
 //base addr map
@@ -223,8 +223,8 @@ void thread_write_files(const int ch) {
       if(!finished) {
         {
           std::unique_lock<std::mutex> lock(queue_mutex[ch]);
-          cv[ch].wait(lock, [ch]{ return !memory_queues[ch].empty() || finished;});
-          if (!memory_queues[ch].empty()) {
+          cv[ch].wait(lock, [ch]{ return (memory_queues[ch].size() > 200) || finished;});
+          while (!memory_queues[ch].empty()) {
             this_memory = memory_queues[ch].front();
             memory_queues[ch].pop();
             int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
@@ -232,7 +232,7 @@ void thread_write_files(const int ch) {
           }
         }
       } else {
-        if (!memory_queues[ch].empty()) {
+        while (!memory_queues[ch].empty()) {
           this_memory = memory_queues[ch].front();
           memory_queues[ch].pop();
           int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
