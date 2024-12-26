@@ -34,8 +34,8 @@ bool split_rank = false;
 char *base_out_file = NULL;
 uint32_t gcpt_over_size = 1024 * 1024 -1;
 uint64_t *raw2_ram[MAX_FILE] = {};
-uint64_t channel_num = 1;
-uint64_t rank_num = 1;
+uint8_t channel_num = 1;
+uint8_t rank_num = 1;
 
 void set_ddrmap();
 
@@ -74,16 +74,16 @@ int main(int argc, char *argv[]) {
 #endif
     set_ddrmap();
 
-    printf("\nstart load ram\n");
-    img_size = load_img(input_file.c_str()) / UINT64_SIZE;
+    printf("\nStart load ram\n");
+    img_size = load_img(input_file.c_str(), channel_num, rank_num) / UINT64_SIZE;
     if (!gcpt_file.empty()) {
       uint64_t gcpt_size = override_ram(gcpt_file.c_str(), gcpt_over_size);
       printf("Overwrite %d bytes from file%s\n", gcpt_size, gcpt_file.c_str());
     }
 
-    printf("init img size %ld\n", img_size * UINT64_SIZE);
+    printf("Init img size %ld\n", img_size * UINT64_SIZE);
     uint64_t rd_num = mem_preload(base_address, img_size, compress_file);
-    printf("transform file %ld Bytes\n", rd_num * UINT64_SIZE);
+    printf("Transform file %ld Bytes\n", rd_num * UINT64_SIZE);
 #ifdef PERF
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -106,7 +106,7 @@ void set_ddrmap() {
     stringstream ss(addr_map);
     string component;
 
-    printf("use addr map");
+    printf("Use addr map");
     while (std::getline(ss, component, ',')) {
       components.push_back(component);
       static int count = 0;
@@ -130,7 +130,7 @@ void set_ddrmap() {
       addr_map_order.use_size = count;
     }
     need_files =  channel_num * (split_rank ? rank_num : 1);
-    printf("\nout file num %d\n", need_files);
+    printf("\nOut file num %d\n", need_files);
     if (need_files > 1) {
       for (int idx = 0; idx < need_files; idx++) {
         char end_name[32];
@@ -186,7 +186,7 @@ inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
       *file_index = 0;
     }
     if (*file_index >= need_files) {
-      printf("debug: file_index > need_files %d \n", *file_index);
+      printf("Debug: file_index > need_files %d \n", *file_index);
       assert(0);
     }
     uint64_t index_hex = construct_index_remp(bg, ba, row, col_9_to_3, col_2_to_0, rank);
@@ -212,12 +212,12 @@ void thread_write_files(const int ch) {
   if (out_raw) {
     std::unique_lock<std::mutex> lock(queue_mutex[ch]);
     cv[ch].wait(lock, []{ return finished; });
-    printf("strat write raw2\n");
+    printf("Strat write raw2\n");
     for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
       uint64_t data_byte = *(raw2_ram[ch] + i);
       output_files[ch].write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
     }
-    printf("write raw2 ok\n");
+    printf("Write raw2 ok\n");
     return;
   } else {
     while (true) {
@@ -282,19 +282,18 @@ uint64_t mem_out_raw2() {
       uint32_t file_index = 0;
       uint64_t addr_map = calculate_index_hex(i, &file_index);
       if (addr_map > GB_8_SIZE / UINT64_SIZE) {
-        printf("addr map over size %ld\n", GB_8_SIZE);
+        printf("Addr map over size %ld\n", GB_8_SIZE);
       }
       // input temp map RAM
       *(raw2_ram[file_index] + addr_map) = data_byte;
     }
   }
-  printf("addr map ok\n");
   return 0;
 }
 
 //write perload
 uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string& compress) {
-    printf("start mem preload\n");
+    printf("Start mem preload\n");
 
     uint64_t rd_addr = 0;
     uint64_t index = base_address >> 3;
@@ -304,9 +303,9 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
     if (use_compress) {
       compress_fd = fopen(compress.c_str(), "r+");
       if (compress_fd == NULL)
-        printf("open compress_file %s flied\n", compress.c_str());
+        printf("Open compress_file %s flied\n", compress.c_str());
       else
-        printf("use compress_file %s load ram\n", compress.c_str());
+        printf("Use compress_file %s load ram\n", compress.c_str());
     }
 
     if (use_compress) {
@@ -318,7 +317,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
           break;
         rd_addr = rd_addr * COMPRESS_SIZE / UINT64_SIZE;
         if (rd_addr >= img_size) {
-          printf("ram read addr over img size %ld\n", rd_addr);
+          printf("Ram read addr over img size %ld\n", rd_addr);
           break;
         }
 
