@@ -134,6 +134,20 @@ jobs:
         fi
         rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
 
+    - name: Compare Test "ra,row,ba,col,bg,ch" -s
+      run: |
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg,ch" -s
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg,ch" -s
+
+        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_3.bin | awk '{print $1}')
+        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI_3.bin | awk '{print $1}')
+        if [ "$PR_MD5" != "$CI_MD5" ]; then
+          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
+          echo "Output differs from CI"
+          exit 1
+        fi
+        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
+
     - name: Compare Test "ra,row,ba,col,bg" of Zstd
       run: |
         $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg"
@@ -141,6 +155,20 @@ jobs:
 
         PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit.bin | awk '{print $1}')
         CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI.bin | awk '{print $1}')
+        if [ "$PR_MD5" != "$CI_MD5" ]; then
+          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
+          echo "Output differs from CI"
+          exit 1
+        fi
+        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
+
+    - name: Compare Test "ra,row,ba,col,bg,ch" -s
+      run: |
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg,ch" -s
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg,ch" -s
+
+        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_3.bin | awk '{print $1}')
+        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI_3.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
