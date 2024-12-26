@@ -258,7 +258,7 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
 #ifdef RM_ZERO
-  if (data_byte != 0 || need_files > 1) {
+  if (data_byte != 0) {
 #endif // RM_ZERO
     uint32_t file_index = 0;
     uint64_t addr = calculate_index_hex(index, &file_index);
