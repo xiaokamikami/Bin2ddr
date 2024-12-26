@@ -13,13 +13,16 @@ long readFromGz(void *ptr, const char *file_name, long buf_size, uint8_t load_ty
 long readFromZstd(void *ptr, const char *file_name, long buf_size, uint8_t load_type);
 
 uint64_t *ram = NULL;
+uint64_t ram_size = 0;
+void finish_ram() {
+    munmap(ram, ram_size);
+}
 uint64_t load_img(const char * image, const uint8_t ch_num, const uint8_t rank_num) {
-    uint64_t ram_size = GB_8_SIZE * ch_num * rank_num;
-    ram = (uint64_t *)malloc(ram_size);//mmap(NULL, ram_size, PROT_READ, MAP_PRIVATE, -1, 0);
-
+    ram_size = GB_8_SIZE * ch_num * rank_num;
+    ram = (uint64_t *)mmap(NULL, ram_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_NORESERVE, -1, 0);
     if (ram == (uint64_t *)MAP_FAILED) {
       printf("Warning: Insufficient phisical memory\n");
-      ram_size = 128 * 1024 * 1024UL;
+      ram_size = GB_8_SIZE;
       ram = (uint64_t *)mmap(NULL, ram_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
       if (ram == (uint64_t *)MAP_FAILED) {
         printf("Error: Cound not mmap 0x%lx bytes\n", ram_size);

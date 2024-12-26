@@ -89,6 +89,7 @@ int main(int argc, char *argv[]) {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "run time: " << duration.count() << " ms" << std::endl;
 #endif
+    finish_ram();
     return 0;
 }
 
