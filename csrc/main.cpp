@@ -211,12 +211,13 @@ void thread_write_files(const int ch) {
 
   if (out_raw) {
     std::unique_lock<std::mutex> lock(queue_mutex[ch]);
-    cv[ch].wait(lock);
-    printf("strat write \n");
+    cv[ch].wait(lock, []{ return finished; });
+    printf("strat write raw2\n");
     for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
       uint64_t data_byte = *(raw2_ram[ch] + i);
       output_files[ch].write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
     }
+    printf("write raw2 ok\n");
     return;
   } else {
     while (true) {

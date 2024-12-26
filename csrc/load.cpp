@@ -26,7 +26,7 @@ uint64_t load_img(const char * image) {
         assert(0);
       }
     }
-    printf("Using simulated %luMB RAM\n", ram_size / (1024 * 1024));
+    printf("Using max ram size %luMB RAM\n", ram_size / (1024 * 1024));
 
     if (ram == NULL) {
       assert(0);
