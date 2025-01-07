@@ -45,45 +45,42 @@ jobs:
      
     - name: Compare Test "ra,row,ba,col,bg"
       run: |
-        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg"
-        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg"
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o r1_commit.bin -m "ra,row,ba,col,bg"
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o r1_CI.bin -m "ra,row,ba,col,bg"
 
-        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit.bin | awk '{print $1}')
-        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI.bin | awk '{print $1}')
+        PR_MD5=$(md5sum r1_commit.bin | awk '{print $1}')
+        CI_MD5=$(md5sum r1_CI.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
-        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
 
     - name: Compare Test "ra,row,ba,col,bg,ch"
       run: |
-        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg,ch"
-        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg,ch"
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o rc2_commit.bin -m "ra,row,ba,col,bg,ch"
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o rc2_CI.bin -m "ra,row,ba,col,bg,ch"
 
-        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_1.bin | awk '{print $1}')
-        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI_1.bin | awk '{print $1}')
+        PR_MD5=$(md5sum rc2_commit_1.bin | awk '{print $1}')
+        CI_MD5=$(md5sum rc2_CI_1.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
-        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
 
     - name: Compare Test "ra,row,ba,col,bg,ch" -s
       run: |
-        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg,ch" -s
-        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg,ch" -s
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o rc4_commit.bin -m "ra,row,ba,col,bg,ch" -s
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/int-gcpt.bin -o rc4_CI.bin -m "ra,row,ba,col,bg,ch" -s
 
-        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_3.bin | awk '{print $1}')
-        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI_3.bin | awk '{print $1}')
+        PR_MD5=$(md5sum rc4_commit_3.bin | awk '{print $1}')
+        CI_MD5=$(md5sum rc4_CI_3.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
-        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
 
   checkpoint-rm-zero:
     runs-on: ubuntu-latest
@@ -122,56 +119,52 @@ jobs:
 
     - name: Compare Test "ra,row,ba,col,bg" of Gz
       run: |
-        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg"
-        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg"
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o r1_gz_commit.bin -m "ra,row,ba,col,bg"
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o r1_gz_CI.bin -m "ra,row,ba,col,bg"
 
-        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit.bin | awk '{print $1}')
-        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI.bin | awk '{print $1}')
+        PR_MD5=$(md5sum r1_gz_commit.bin | awk '{print $1}')
+        CI_MD5=$(md5sum r1_gz_CI.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
-        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
 
     - name: Compare Test "ra,row,ba,col,bg,ch" -s
       run: |
-        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg,ch" -s
-        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg,ch" -s
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o rc4_gz_commit.bin -m "ra,row,ba,col,bg,ch" -s
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.gz -o rc4_gz_CI.bin -m "ra,row,ba,col,bg,ch" -s
 
-        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_3.bin | awk '{print $1}')
-        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI_3.bin | awk '{print $1}')
+        PR_MD5=$(md5sum rc4_gz_commit_3.bin | awk '{print $1}')
+        CI_MD5=$(md5sum rc4_gz_CI_3.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
-        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
 
     - name: Compare Test "ra,row,ba,col,bg" of Zstd
       run: |
-        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg"
-        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg"
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o rc1_zstd_commit.bin -m "ra,row,ba,col,bg"
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o rc1_zstd_CI.bin -m "ra,row,ba,col,bg"
 
-        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit.bin | awk '{print $1}')
-        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI.bin | awk '{print $1}')
+        PR_MD5=$(md5sum rc1_zstd_commit.bin | awk '{print $1}')
+        CI_MD5=$(md5sum rc1_zstd_CI.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
-        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
 
     - name: Compare Test "ra,row,ba,col,bg,ch" -s
       run: |
-        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o $GITHUB_WORKSPACE/commit.bin -m "ra,row,ba,col,bg,ch" -s
-        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o $GITHUB_WORKSPACE/CI.bin -m "ra,row,ba,col,bg,ch" -s
+        $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o rc4_zstd_commit.bin -m "ra,row,ba,col,bg,ch" -s
+        CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o rc4_zstd_CI.bin -m "ra,row,ba,col,bg,ch" -s
 
-        PR_MD5=$(md5sum $GITHUB_WORKSPACE/commit_3.bin | awk '{print $1}')
-        CI_MD5=$(md5sum $GITHUB_WORKSPACE/CI_3.bin | awk '{print $1}')
+        PR_MD5=$(md5sum rc4_zstd_commit_3.bin | awk '{print $1}')
+        CI_MD5=$(md5sum rc4_zstd_CI_3.bin | awk '{print $1}')
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
-        rm $GITHUB_WORKSPACE/commit*.bin $GITHUB_WORKSPACE/CI*.bin
