@@ -11,6 +11,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <queue>
+#include <array>
+#include <fstream>
 #include "../include/common.h"
 #include "../include/load.h"
 #include "../include/bin2ddr.h"
@@ -421,7 +423,7 @@ int args_parsingniton(int argc,char *argv[]) {
       }
     } else if (strcmp(argv[i], "--raw2") == 0) {
       out_raw = true;
-    } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--split_rank") == 0) {
+    } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--split-rank") == 0) {
       split_rank = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       show_help();
