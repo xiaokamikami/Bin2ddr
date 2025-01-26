@@ -215,12 +215,28 @@ void thread_write_files(const int ch) {
   if (out_raw) {
     std::unique_lock<std::mutex> lock(queue_mutex[ch]);
     cv[ch].wait(lock, []{ return finished; });
+#ifdef USE_FPGA
+    printf("Strat write fpga raw2\n");
+    char temp_lang[512];
+    for (size_t i = 0; i < img_size; i++) {
+      uint32_t data_byte_low = *(uint32_t *)(raw2_ram[ch] + i);
+      uint32_t data_byte_high = uint32_t(*(raw2_ram[ch] + i) >> 32);
+      int len = snprintf(temp_lang, sizeof(temp_lang), "0x%08lx\n0x%08x\n0x%08x\n0x%08x\n", i * 2, data_byte_low, i * 4, data_byte_high);
+      buffer.append(temp_lang, len);
+      if (buffer.length() > STREAM_BUFFER_SIZE) {
+        output_files[ch] << buffer;
+        buffer.clear();
+      }
+    }
+    if (buffer.size() > 0)
+      output_files[ch] << buffer;
+#else
     printf("Strat write raw2\n");
     for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
       uint64_t data_byte = *(raw2_ram[ch] + i);
       output_files[ch].write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
     }
-    printf("Write raw2 ok\n");
+#endif // USE_FPGA
     return;
   } else {
     while (true) {
@@ -282,13 +298,17 @@ uint64_t mem_out_raw2() {
     uint64_t data_byte = *(ram + i);
     if (data_byte != 0) {
       data_byte = htobe64(data_byte);
+#ifndef USE_FPGA
       uint32_t file_index = 0;
       uint64_t addr_map = calculate_index_hex(i, &file_index);
+      // input temp map RAM
+      *(raw2_ram[file_index] + addr_map) = data_byte;
       if (addr_map > GB_8_SIZE / UINT64_SIZE) {
         printf("Addr map over size %ld\n", GB_8_SIZE);
       }
-      // input temp map RAM
-      *(raw2_ram[file_index] + addr_map) = data_byte;
+#else
+      *(raw2_ram[0] + i) = data_byte;
+#endif // USE_FPGA
     }
   }
   return 0;

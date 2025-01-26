@@ -17,6 +17,9 @@ endif
 ifeq ($(RM_ZERO), 1)
 CXXFLAGS += -DRM_ZERO
 endif
+ifeq ($(FPGA), 1)
+CXXFLAGS += -DUSE_FPGA
+endif
 ifneq ($(MAX_FILE),)
 CXXFLAGS += -DMAX_FILE=$(MAX_FILE)
 else
