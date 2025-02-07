@@ -218,10 +218,12 @@ void thread_write_files(const int ch) {
 #ifdef USE_FPGA
     printf("Strat write fpga raw2\n");
     char temp_lang[512];
+    size_t addr = 0;
     for (size_t i = 0; i < img_size; i++) {
-      uint32_t data_byte_low = *(uint32_t *)(raw2_ram[ch] + i);
-      uint32_t data_byte_high = uint32_t(*(raw2_ram[ch] + i) >> 32);
-      int len = snprintf(temp_lang, sizeof(temp_lang), "0x%08lx\n0x%08x\n0x%08x\n0x%08x\n", i * 2, data_byte_low, i * 4, data_byte_high);
+      uint32_t data_byte_high = *(uint32_t *)(raw2_ram[ch] + i);
+      uint32_t data_byte_low = uint32_t(*(raw2_ram[ch] + i) >> 32);
+      int len = snprintf(temp_lang, sizeof(temp_lang), "0x%08lx\n0x%08x\n0x%08x\n0x%08x\n", addr, data_byte_low, addr + 2, data_byte_high);
+      addr += 4;
       buffer.append(temp_lang, len);
       if (buffer.length() > STREAM_BUFFER_SIZE) {
         output_files[ch] << buffer;
