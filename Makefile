@@ -11,6 +11,8 @@ OBJDIR = ./obj/
 CHANNEL ?= 1
 RANK ?= 1
 
+include nemu.mk
+
 ifeq ($(PERF), 1)
 CXXFLAGS += -DPERF
 endif
