@@ -246,18 +246,44 @@ void thread_write_files(const int ch) {
         {
           std::unique_lock<std::mutex> lock(queue_mutex[ch]);
           cv[ch].wait(lock, [ch]{ return (memory_queues[ch].size() > 200) || finished;});
+          if (finished) continue;
           while (!memory_queues[ch].empty()) {
-            this_memory = memory_queues[ch].front();
-            memory_queues[ch].pop();
-            int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
-            buffer.append(temp, len);
+            int len = 0;
+            #ifdef USE_FPGA
+            uint64_t start_addr = 0;
+            for (size_t i = 0; i < 100; i++) {
+              if (memory_queues[ch].size() == 0) break;
+              this_memory = memory_queues[ch].front();
+              memory_queues[ch].pop();
+              if (i == 0) {
+                start_addr = this_memory.addr;
+                len = snprintf(temp, sizeof(temp), "%0lx\n", this_memory.addr * sizeof(uint64_t));
+                buffer.append(temp, len);
+              } else if (start_addr + i != this_memory.addr) {
+                break;
+              }
+              len = snprintf(temp, sizeof(temp), "%016lx", this_memory.data);
+              buffer.append(temp, len);
+            }
+              len = snprintf(temp, sizeof(temp), "\n%lx\n%016lx\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
+              buffer.append(temp, len);
+            #else
+              this_memory = memory_queues[ch].front();
+              memory_queues[ch].pop();
+              len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+              buffer.append(temp, len);
+            #endif
           }
         }
       } else {
         while (!memory_queues[ch].empty()) {
           this_memory = memory_queues[ch].front();
           memory_queues[ch].pop();
-          int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+            #ifdef USE_FPGA
+              int len = snprintf(temp, sizeof(temp), "%lx\n%016lx\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
+            #else
+              int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+            #endif
           buffer.append(temp, len);
         }
       }
@@ -279,24 +305,32 @@ void thread_write_files(const int ch) {
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
-#ifdef RM_ZERO
+#if defined(RM_ZERO) || defined(USE_FPGA)
   if (data_byte != 0) {
 #endif // RM_ZERO
     uint32_t file_index = 0;
+#ifdef USE_FPGA
+    {
+      std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
+      memory_queues[file_index].push({data_byte, rd_addr});
+    }
+#else
     uint64_t addr = calculate_index_hex(index, &file_index);
     {
       std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
       memory_queues[file_index].push({data_byte, addr});
     }
+#endif // USE_FPGA
     cv[file_index].notify_one();
-#ifdef RM_ZERO
+#if defined(RM_ZERO) || defined(USE_FPGA)
   }
 #endif // RM_ZERO
 }
 
-uint64_t mem_out_raw2() {
+uint64_t mem_out_raw2(bool use_compress, uint64_t offset = 0) {
   extern uint64_t *ram;
-  for (size_t i = 0; i < img_size; i++) {
+  uint64_t ram_size = use_compress ? COMPRESS_SIZE / UINT64_SIZE: img_size;
+  for (size_t i = offset; i < ram_size; i++) {
     uint64_t data_byte = *(ram + i);
     if (data_byte != 0) {
       data_byte = htobe64(data_byte);
@@ -333,6 +367,11 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
         printf("Use compress_file %s load ram\n", compress.c_str());
     }
 
+    std::thread consumer_thread[need_files];
+    for (size_t i = 0; i < need_files; i++){   
+      consumer_thread[i] = std::thread(thread_write_files, i);
+    }
+
     if (use_compress) {
       while (true) {
         // out compress dat
@@ -345,24 +384,25 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
           printf("Ram read addr over img size %ld\n", rd_addr);
           break;
         }
-
-        for (size_t i = 0; i < COMPRESS_SIZE / UINT64_SIZE; i++) {
-          uint64_t write_addr = rd_addr + i;
-          mem_out_hex(rd_addr, write_addr);
-          index ++;
+        if (out_raw) {
+          for (size_t i = 0; i < need_files; i++) {
+            raw2_ram[i] = (uint64_t *)malloc(GB_8_SIZE);
+          }
+          mem_out_raw2(use_compress);
+        } else {
+          for (size_t i = 0; i < COMPRESS_SIZE / UINT64_SIZE; i++) {
+            uint64_t write_addr = rd_addr + i;
+            mem_out_hex(write_addr, 0);
+          }
         }
       }
     } else {
       // Start a consumer thread to write to the file
-      std::thread consumer_thread[need_files];
-      for (size_t i = 0; i < need_files; i++){   
-        consumer_thread[i] = std::thread(thread_write_files, i);
-      }
       if (out_raw) {
         for (size_t i = 0; i < need_files; i++) {
           raw2_ram[i] = (uint64_t *)malloc(GB_8_SIZE);
         }
-        mem_out_raw2();
+        mem_out_raw2(false);
         index = img_size;
       } else {
         while (rd_addr < img_size) {
@@ -370,15 +410,15 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
           rd_addr += 1;
           index += 1;
         }
+      }
     }
-      finished = true;
-      for (size_t i = 0; i < need_files; i++) {
-        cv[i].notify_one();
-      }
-      for (size_t i = 0; i < need_files; i++) {
-        if (consumer_thread[i].joinable())
-          consumer_thread[i].join();
-      }
+    finished = true;
+    for (size_t i = 0; i < need_files; i++) {
+      cv[i].notify_one();
+    }
+    for (size_t i = 0; i < need_files; i++) {
+      if (consumer_thread[i].joinable())
+        consumer_thread[i].join();
     }
     return index;
 }
