@@ -12,8 +12,8 @@ nemu-update:
 	fi
 	@echo "Building NEMU..."
 	cd $(NEMU_DIR) && export NEMU_HOME=$(NEMU_DIR) && \
-	make riscv64-xs_defconfig && \
-	echo "CONFIG_MEMORY_REGION_ANALYSIS=y" >> $(NEMU_DIR)/.config  && \
+	echo "CONFIG_MEMORY_REGION_ANALYSIS=y" >> $(NEMU_DIR)/configs/riscv64-xs-cpt_defconfig && \
+	make riscv64-xs-cpt_defconfig && \
 	make -j8
 	@echo "Copying generated binary to current repository..."
 	cp $(NEMU_DIR)/$(NEMU_BINARY) ./ready-to-run/
