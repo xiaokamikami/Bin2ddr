@@ -11,7 +11,11 @@ OBJDIR = ./obj/
 CHANNEL ?= 1
 RANK ?= 1
 
+ifneq ($(MAKECMDGOALS),)
+ifeq ($(filter-out nemu-update nemu-clean,$(MAKECMDGOALS)),)
 include nemu.mk
+endif
+endif
 
 ifeq ($(PERF), 1)
 CXXFLAGS += -DPERF
@@ -56,11 +60,7 @@ $(OBJDIR)%.o: $(SRCDIR)%.cpp
 clean:
 	rm bin2ddr
 	rm -rf $(OBJDIR) $(PROM)
-  
-# 添加一个 phony 目标来确保 obj 目录总是存在的  
-.PHONY: dirs  
-dirs:  
-	$(shell mkdir -p $(OBJDIR))  
-  
-# 让 all 成为默认目标，并确保 obj 目录存在  
+.PHONY: all dirs nemu-update nemu-clean
+dirs:
+	@mkdir -p $(OBJDIR)
 all: dirs $(PROM)
