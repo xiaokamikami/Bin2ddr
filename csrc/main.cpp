@@ -216,30 +216,11 @@ void thread_write_files(const int ch) {
   if (out_raw) {
     std::unique_lock<std::mutex> lock(queue_mutex[ch]);
     cv[ch].wait(lock, []{ return finished; });
-#ifdef USE_FPGA
-    printf("Strat write fpga raw2\n");
-    char temp_lang[512];
-    size_t addr = 0;
-    for (size_t i = 0; i < img_size; i++) {
-      uint32_t data_byte_high = *(uint32_t *)(raw2_ram[ch] + i);
-      uint32_t data_byte_low = uint32_t(*(raw2_ram[ch] + i) >> 32);
-      int len = snprintf(temp_lang, sizeof(temp_lang), "0x%08lx\n0x%08x\n0x%08x\n0x%08x\n", addr, data_byte_low, addr + 2, data_byte_high);
-      addr += 4;
-      buffer.append(temp_lang, len);
-      if (buffer.length() > STREAM_BUFFER_SIZE) {
-        output_files[ch] << buffer;
-        buffer.clear();
-      }
-    }
-    if (buffer.size() > 0)
-      output_files[ch] << buffer;
-#else
     printf("Strat write raw2\n");
     for (size_t i = 0; i < GB_8_SIZE / UINT64_SIZE; i++) {
       uint64_t data_byte = *(raw2_ram[ch] + i);
       output_files[ch].write(reinterpret_cast<const char*>(&data_byte), sizeof(data_byte));
     }
-#endif // USE_FPGA
     return;
   } else {
     while (true) {
