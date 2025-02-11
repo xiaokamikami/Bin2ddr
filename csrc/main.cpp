@@ -13,6 +13,7 @@
 #include <queue>
 #include <array>
 #include <fstream>
+#include <stack> 
 #include "../include/common.h"
 #include "../include/load.h"
 #include "../include/bin2ddr.h"
@@ -245,14 +246,13 @@ void thread_write_files(const int ch) {
       if(!finished) {
         {
           std::unique_lock<std::mutex> lock(queue_mutex[ch]);
-          cv[ch].wait(lock, [ch]{ return (memory_queues[ch].size() > 200) || finished;});
+          cv[ch].wait(lock, [ch]{ return (memory_queues[ch].size() > 128) || finished;});
           if (finished) continue;
-          while (!memory_queues[ch].empty()) {
             int len = 0;
-            #ifdef USE_FPGA
+          #ifdef USE_FPGA
             uint64_t start_addr = 0;
-            for (size_t i = 0; i < 100; i++) {
-              if (memory_queues[ch].size() == 0) break;
+            static std::stack<uint64_t> memory_stacks;
+            for (size_t i = 0; i < 128; i++) {
               this_memory = memory_queues[ch].front();
               memory_queues[ch].pop();
               if (i == 0) {
@@ -262,18 +262,24 @@ void thread_write_files(const int ch) {
               } else if (start_addr + i != this_memory.addr) {
                 break;
               }
-              len = snprintf(temp, sizeof(temp), "%016lx", this_memory.data);
+              memory_stacks.push(this_memory.data);
+            }
+            for (size_t i = memory_stacks.size(); i > 0; i--) {
+              uint64_t data = memory_stacks.top();
+              memory_stacks.pop();
+              len = snprintf(temp, sizeof(temp), "%016lx", data);
               buffer.append(temp, len);
             }
-              len = snprintf(temp, sizeof(temp), "\n%lx\n%016lx\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
-              buffer.append(temp, len);
-            #else
+            len = snprintf(temp, sizeof(temp), "\n");
+            buffer.append(temp, len);
+          #else
+            while (!memory_queues[ch].empty()) {
               this_memory = memory_queues[ch].front();
               memory_queues[ch].pop();
               len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
               buffer.append(temp, len);
-            #endif
-          }
+            }
+          #endif
         }
       } else {
         while (!memory_queues[ch].empty()) {
@@ -305,24 +311,22 @@ void thread_write_files(const int ch) {
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
-#if defined(RM_ZERO) || defined(USE_FPGA)
+#if defined(RM_ZERO)
   if (data_byte != 0) {
 #endif // RM_ZERO
     uint32_t file_index = 0;
-#ifdef USE_FPGA
-    {
-      std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
-      memory_queues[file_index].push({data_byte, rd_addr});
-    }
-#else
+    static uint64_t queue_size = 0;
+#ifndef USE_FPGA
     uint64_t addr = calculate_index_hex(index, &file_index);
+#else
+    uint64_t addr = index;
+#endif // USE_FPGA
     {
       std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
       memory_queues[file_index].push({data_byte, addr});
     }
-#endif // USE_FPGA
     cv[file_index].notify_one();
-#if defined(RM_ZERO) || defined(USE_FPGA)
+#if defined(RM_ZERO)
   }
 #endif // RM_ZERO
 }
