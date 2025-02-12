@@ -284,7 +284,7 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
 #ifndef USE_FPGA
     uint64_t addr = calculate_index_hex(index, &file_index);
 #else
-    uint64_t addr = index;
+    uint64_t addr = rd_addr;
 #endif // USE_FPGA
     {
       std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
