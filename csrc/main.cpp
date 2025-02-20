@@ -126,10 +126,10 @@ void set_ddrmap() {
         char file_name[128];
         sscanf(base_out_file, "%[^.].%s", first_name, end_name);
         sprintf(file_name, "%s_%d.%s\0", first_name, idx, end_name);
-        output_files[idx].open(file_name);
+        output_files[idx].open(file_name, std::ios::out | std::ios::trunc);
       }
     } else {
-       output_files[0].open(base_out_file);
+       output_files[0].open(base_out_file, std::ios::out | std::ios::trunc);
     }
 
 }
@@ -196,7 +196,7 @@ void thread_write_files(const int ch) {
   std::string buffer;
   buffer.reserve(STREAM_BUFFER_SIZE);
   char temp[64];
-
+  int len = 0;
   if (out_raw) {
     std::unique_lock<std::mutex> lock(queue_mutex[ch]);
     cv[ch].wait(lock, []{ return finished; });
@@ -211,32 +211,33 @@ void thread_write_files(const int ch) {
       if(!finished) {
         {
           std::unique_lock<std::mutex> lock(queue_mutex[ch]);
-          cv[ch].wait(lock, [ch]{ return (memory_queues[ch].size() > 128) || finished;});
+          cv[ch].wait(lock, [ch]{ return (memory_queues[ch].size() > 512) || finished;});
           if (finished && memory_queues[ch].size() < 128) continue;
-            int len = 0;
           #ifdef USE_FPGA
             uint64_t start_addr = 0;
             static std::stack<uint64_t> memory_stacks;
-            for (size_t i = 0; i < 128; i++) {
-              this_memory = memory_queues[ch].front();
-              memory_queues[ch].pop();
-              if (i == 0) {
-                start_addr = this_memory.addr;
-                len = snprintf(temp, sizeof(temp), "%0lx\n", this_memory.addr * sizeof(uint64_t));
-                buffer.append(temp, len);
-              } else if (start_addr + i != this_memory.addr) {
-                break;
+            while (memory_queues[ch].size() < 128) {
+              for (size_t i = 0; i < 128; i++) {
+                this_memory = memory_queues[ch].front();
+                memory_queues[ch].pop();
+                if (i == 0) {
+                  start_addr = this_memory.addr;
+                  len = snprintf(temp, sizeof(temp), "%0lx\n", this_memory.addr * sizeof(uint64_t));
+                  buffer.append(temp, len);
+                } else if (start_addr + i != this_memory.addr) {
+                  break;
+                }
+                memory_stacks.push(this_memory.data);
               }
-              memory_stacks.push(this_memory.data);
-            }
-            for (size_t i = memory_stacks.size(); i > 0; i--) {
-              uint64_t data = memory_stacks.top();
-              memory_stacks.pop();
-              len = snprintf(temp, sizeof(temp), "%016lx", data);
+              for (size_t i = memory_stacks.size(); i > 0; i--) {
+                uint64_t data = memory_stacks.top();
+                memory_stacks.pop();
+                len = snprintf(temp, sizeof(temp), "%016lx", data);
+                buffer.append(temp, len);
+              }
+              len = snprintf(temp, sizeof(temp), "\n");
               buffer.append(temp, len);
             }
-            len = snprintf(temp, sizeof(temp), "\n");
-            buffer.append(temp, len);
           #else
             while (!memory_queues[ch].empty()) {
               this_memory = memory_queues[ch].front();
@@ -251,9 +252,9 @@ void thread_write_files(const int ch) {
           this_memory = memory_queues[ch].front();
           memory_queues[ch].pop();
             #ifdef USE_FPGA
-              int len = snprintf(temp, sizeof(temp), "%lx\n%016lx\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
+              len = snprintf(temp, sizeof(temp), "%lx\n%016lx\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
             #else
-              int len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
+              len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
             #endif
           buffer.append(temp, len);
         }
@@ -276,6 +277,7 @@ void thread_write_files(const int ch) {
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
+  static uint32_t data_count = 0;
 #if defined(RM_ZERO)
   if (data_byte != 0) {
 #endif // RM_ZERO
@@ -290,7 +292,11 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
       std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
       memory_queues[file_index].push({data_byte, addr});
     }
-    cv[file_index].notify_one();
+    data_count ++;
+    if (data_count == 512) {
+      cv[file_index].notify_one();
+      data_count = 0;
+    }
 #if defined(RM_ZERO)
   }
 #endif // RM_ZERO
