@@ -50,8 +50,8 @@ jobs:
 
         PR_MD5=$(md5sum r1_commit.bin | awk '{print $1}')
         CI_MD5=$(md5sum r1_CI.bin | awk '{print $1}')
+        echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
@@ -63,8 +63,8 @@ jobs:
 
         PR_MD5=$(md5sum rc2_commit_1.bin | awk '{print $1}')
         CI_MD5=$(md5sum rc2_CI_1.bin | awk '{print $1}')
+        echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
@@ -76,8 +76,8 @@ jobs:
 
         PR_MD5=$(md5sum rc4_commit_3.bin | awk '{print $1}')
         CI_MD5=$(md5sum rc4_CI_3.bin | awk '{print $1}')
+        echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
@@ -124,8 +124,8 @@ jobs:
 
         PR_MD5=$(md5sum r1_gz_commit.bin | awk '{print $1}')
         CI_MD5=$(md5sum r1_gz_CI.bin | awk '{print $1}')
+        echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
@@ -137,8 +137,8 @@ jobs:
 
         PR_MD5=$(md5sum rc4_gz_commit_3.bin | awk '{print $1}')
         CI_MD5=$(md5sum rc4_gz_CI_3.bin | awk '{print $1}')
+        echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
@@ -150,8 +150,8 @@ jobs:
 
         PR_MD5=$(md5sum rc1_zstd_commit.bin | awk '{print $1}')
         CI_MD5=$(md5sum rc1_zstd_CI.bin | awk '{print $1}')
+        echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
@@ -163,8 +163,8 @@ jobs:
 
         PR_MD5=$(md5sum rc4_zstd_commit_3.bin | awk '{print $1}')
         CI_MD5=$(md5sum rc4_zstd_CI_3.bin | awk '{print $1}')
+        echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
         if [ "$PR_MD5" != "$CI_MD5" ]; then
-          echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
           echo "Output differs from CI"
           exit 1
         fi
