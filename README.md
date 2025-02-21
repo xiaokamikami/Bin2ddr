@@ -11,7 +11,7 @@ Convert generic binary files:
 
 `make FPGA=1`
 
-` ./bin2ddr -i ready-to-run/linux-xs.bin -o liunx.bin --raw2 `
+` ./bin2ddr -i ready-to-run/linux-xs.bin -o liunx.bin -m "row,ba,col,bg"`
 
 ## use to memh compression :
 This function removes unused checkpoint memory by analyzing the program in the checkpoint

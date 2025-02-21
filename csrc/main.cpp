@@ -286,6 +286,7 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
 #ifndef USE_FPGA
     uint64_t addr = calculate_index_hex(index, &file_index);
 #else
+    calculate_index_hex(index, &rd_addr);
     uint64_t addr = rd_addr;
 #endif // USE_FPGA
     {
@@ -308,9 +309,9 @@ uint64_t mem_out_raw2(bool use_compress, uint64_t offset = 0) {
   for (size_t i = offset; i < ram_size; i++) {
     uint64_t data_byte = *(ram + i);
     if (data_byte != 0) {
+      uint32_t file_index = 0;
       data_byte = htobe64(data_byte);
 #ifndef USE_FPGA
-      uint32_t file_index = 0;
       uint64_t addr_map = calculate_index_hex(i, &file_index);
       // input temp map RAM
       *(raw2_ram[file_index] + addr_map) = data_byte;
@@ -318,7 +319,9 @@ uint64_t mem_out_raw2(bool use_compress, uint64_t offset = 0) {
         printf("Addr map over size %ld\n", GB_8_SIZE);
       }
 #else
-      *(raw2_ram[0] + i) = data_byte;
+      if (need_files > 1) {
+        calculate_index_hex(i, &file_index);
+      *(raw2_ram[file_index] + i) = data_byte;
 #endif // USE_FPGA
     }
   }
