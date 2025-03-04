@@ -14,6 +14,7 @@
 #include <array>
 #include <fstream>
 #include <stack> 
+#include <fmt/core.h>
 #include "../include/common.h"
 #include "../include/load.h"
 #include "../include/bin2ddr.h"
@@ -21,7 +22,7 @@
 #ifdef PERF
 #include <chrono>
 #endif
-#define STREAM_BUFFER_SIZE 1024 * 1024 * 256
+#define STREAM_BUFFER_SIZE 1024 * 1024 * 32
 #define COMPRESS_SIZE (4 * 1024 * 1024)
 
 //base addr map
@@ -195,8 +196,6 @@ void thread_write_files(const int ch) {
   MemoryQueues this_memory;
   std::string buffer;
   buffer.reserve(STREAM_BUFFER_SIZE);
-  char temp[64];
-  int len = 0;
   if (out_raw) {
     std::unique_lock<std::mutex> lock(queue_mutex[ch]);
     cv[ch].wait(lock, []{ return finished; });
@@ -222,8 +221,7 @@ void thread_write_files(const int ch) {
                 memory_queues[ch].pop();
                 if (i == 0) {
                   start_addr = this_memory.addr;
-                  len = snprintf(temp, sizeof(temp), "%0lx\n", this_memory.addr * sizeof(uint64_t));
-                  buffer.append(temp, len);
+                  buffer += fmt::format("{:016x}\n", this_memory.addr * sizeof(uint64_t));
                 } else if (start_addr + i != this_memory.addr) {
                   break;
                 }
@@ -232,18 +230,15 @@ void thread_write_files(const int ch) {
               for (size_t i = memory_stacks.size(); i > 0; i--) {
                 uint64_t data = memory_stacks.top();
                 memory_stacks.pop();
-                len = snprintf(temp, sizeof(temp), "%016lx", data);
-                buffer.append(temp, len);
+                buffer += fmt::format("{:016x}", this_memory.data);
               }
-              len = snprintf(temp, sizeof(temp), "\n");
-              buffer.append(temp, len);
+              buffer += fmt::format("\n");
             }
           #else
             while (!memory_queues[ch].empty()) {
               this_memory = memory_queues[ch].front();
               memory_queues[ch].pop();
-              len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
-              buffer.append(temp, len);
+              buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
             }
           #endif
         }
@@ -251,23 +246,22 @@ void thread_write_files(const int ch) {
         while (!memory_queues[ch].empty()) {
           this_memory = memory_queues[ch].front();
           memory_queues[ch].pop();
-            #ifdef USE_FPGA
-              len = snprintf(temp, sizeof(temp), "%lx\n%016lx\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
-            #else
-              len = snprintf(temp, sizeof(temp), "@%lx %016lx\n", this_memory.addr, this_memory.data);
-            #endif
-          buffer.append(temp, len);
+          #ifdef USE_FPGA
+            buffer += fmt::format("{:x}\n{:016x}\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
+          #else
+            buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
+          #endif
         }
       }
 
-      if (buffer.length() > STREAM_BUFFER_SIZE) {
-        output_files[ch] << buffer;
+      if (buffer.size() > STREAM_BUFFER_SIZE) {
+        output_files[ch].write(buffer.data(), buffer.length());
         buffer.clear();
       }
 
       if (finished && memory_queues[ch].empty()) {
         if (buffer.size() > 0)
-          output_files[ch] << buffer;
+          output_files[ch].write(buffer.data(), buffer.length());
         return;  
       }
     }
@@ -286,7 +280,7 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
 #ifndef USE_FPGA
     uint64_t addr = calculate_index_hex(index, &file_index);
 #else
-    calculate_index_hex(index, &rd_addr);
+    calculate_index_hex(rd_addr, &file_index);
     uint64_t addr = rd_addr;
 #endif // USE_FPGA
     {
@@ -321,6 +315,7 @@ uint64_t mem_out_raw2(bool use_compress, uint64_t offset = 0) {
 #else
       if (need_files > 1) {
         calculate_index_hex(i, &file_index);
+      }
       *(raw2_ram[file_index] + i) = data_byte;
 #endif // USE_FPGA
     }
