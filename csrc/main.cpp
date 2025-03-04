@@ -238,7 +238,7 @@ void thread_write_files(const int ch) {
             while (!memory_queues[ch].empty()) {
               this_memory = memory_queues[ch].front();
               memory_queues[ch].pop();
-              buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
+              buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr, this_memory.data);
             }
           #endif
         }
@@ -249,7 +249,7 @@ void thread_write_files(const int ch) {
           #ifdef USE_FPGA
             buffer += fmt::format("{:x}\n{:016x}\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
           #else
-            buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
+            buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr, this_memory.data);
           #endif
         }
       }
