@@ -1,5 +1,5 @@
 CXX = g++  
-CXXFLAGS = -std=c++11 -Wextra -pedantic -pthread -Wall -O3
+CXXFLAGS = -std=c++17 -Wextra -pedantic -pthread -Wall -O3
 
 PROM = bin2ddr  
   
@@ -32,10 +32,9 @@ else
 CXXFLAGS += -DMAX_FILE=4
 endif
 
-LDFLAGS =-L. -lz -lzstd
+LDFLAGS =-L. -lz -lzstd -lfmt
 # 使用 -I 选项指定头文件搜索路径  
 CPPFLAGS = -I$(INCDIR)  
-  
 # 指定对象文件的目录  
 VPATH = $(SRCDIR):$(OBJDIR)  
   

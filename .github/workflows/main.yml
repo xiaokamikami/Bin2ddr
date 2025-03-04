@@ -33,6 +33,10 @@ jobs:
         ref: main
         path: CI
 
+    - name: Install lib
+      run: |
+        sudo apt-get install libfmt-dev
+
     - name: Build Commit branch
       run: |
         cd $GITHUB_WORKSPACE
@@ -106,6 +110,10 @@ jobs:
         repository: ${{ github.repository }}
         ref: main
         path: CI
+
+    - name: Install lib
+      run: |
+        sudo apt-get install libfmt-dev
 
     - name: Build Commit branch
       run: |
