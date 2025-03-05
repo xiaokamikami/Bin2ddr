@@ -211,7 +211,7 @@ void thread_write_files(const int ch) {
         {
           std::unique_lock<std::mutex> lock(queue_mutex[ch]);
           cv[ch].wait(lock, [ch]{ return (memory_queues[ch].size() > 512) || finished;});
-          if (finished && memory_queues[ch].size() < 128) continue;
+          if (finished) continue;
           #ifdef USE_FPGA
             uint64_t start_addr = 0;
             static std::stack<uint64_t> memory_stacks;
@@ -235,7 +235,7 @@ void thread_write_files(const int ch) {
               buffer += fmt::format("\n");
             }
           #else
-            while (!memory_queues[ch].empty()) {
+            for (size_t i = 0; i < 512; ++i) {
               this_memory = memory_queues[ch].front();
               memory_queues[ch].pop();
               buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr, this_memory.data);
@@ -243,7 +243,8 @@ void thread_write_files(const int ch) {
           #endif
         }
       } else {
-        while (!memory_queues[ch].empty()) {
+        size_t queue_size = memory_queues[ch].size();
+        for (size_t i = 0; i < queue_size; ++i) {
           this_memory = memory_queues[ch].front();
           memory_queues[ch].pop();
           #ifdef USE_FPGA
@@ -257,21 +258,21 @@ void thread_write_files(const int ch) {
       if (buffer.size() > STREAM_BUFFER_SIZE) {
         output_files[ch].write(buffer.data(), buffer.length());
         buffer.clear();
-      }
-
-      if (finished && memory_queues[ch].empty()) {
+        if(finished)
+          return;
+      } else if (finished && memory_queues[ch].empty()) {
         if (buffer.size() > 0)
           output_files[ch].write(buffer.data(), buffer.length());
         return;  
       }
-    }
+    } // END WHILE
   }
 }
 
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
-  static uint32_t data_count = 0;
+  static uint32_t data_count[MAX_FILE] = {};
 #if defined(RM_ZERO)
   if (data_byte != 0) {
 #endif // RM_ZERO
@@ -287,10 +288,10 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
       std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
       memory_queues[file_index].push({data_byte, addr});
     }
-    data_count ++;
-    if (data_count == 512) {
+    data_count[file_index] ++;
+    if (data_count[file_index] == 512) {
       cv[file_index].notify_one();
-      data_count = 0;
+      data_count[file_index] = 0;
     }
 #if defined(RM_ZERO)
   }
