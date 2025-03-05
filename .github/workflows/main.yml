@@ -36,6 +36,7 @@ jobs:
     - name: Install lib
       run: |
         sudo apt-get install libfmt-dev
+        sudo apt-get install libboost-all-dev
 
     - name: Build Commit branch
       run: |
@@ -114,6 +115,7 @@ jobs:
     - name: Install lib
       run: |
         sudo apt-get install libfmt-dev
+        sudo apt-get install libboost-all-dev
 
     - name: Build Commit branch
       run: |
@@ -169,8 +171,8 @@ jobs:
         $GITHUB_WORKSPACE/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o rc4_zstd_commit.bin -m "ra,row,ba,col,bg,ch" -s
         CI/bin2ddr -i $GITHUB_WORKSPACE/ready-to-run/hmmer_nph3.zstd -o rc4_zstd_CI.bin -m "ra,row,ba,col,bg,ch" -s
 
-        PR_MD5=$(md5sum rc4_zstd_commit_3.bin | awk '{print $1}')
-        CI_MD5=$(md5sum rc4_zstd_CI_3.bin | awk '{print $1}')
+        PR_MD5=$(md5sum rc4_zstd_commit_2.bin | awk '{print $1}')
+        CI_MD5=$(md5sum rc4_zstd_CI_2.bin | awk '{print $1}')
         echo "PR MD5: $PR_MD5 , Master MD5: $CI_MD5"
         if [ "$PR_MD5" != "$CI_MD5" ]; then
           echo "Output differs from CI"

@@ -15,6 +15,7 @@
 #include <fstream>
 #include <stack> 
 #include <fmt/core.h>
+#include <boost/lockfree/spsc_queue.hpp>
 #include "../include/common.h"
 #include "../include/load.h"
 #include "../include/bin2ddr.h"
@@ -189,7 +190,7 @@ struct MemoryQueues {
   uint64_t data;
   uint64_t addr;
 };
-std::queue<MemoryQueues> memory_queues[MAX_FILE];
+boost::lockfree::spsc_queue<MemoryQueues, boost::lockfree::capacity<1024 * 1024>> memory_queues[MAX_FILE];
 
 bool finished = false;
 void thread_write_files(const int ch) {
@@ -209,13 +210,15 @@ void thread_write_files(const int ch) {
     while (true) {
       if(!finished) {
         {
-          std::unique_lock<std::mutex> lock(queue_mutex[ch]);
-          cv[ch].wait(lock, [ch]{ return (memory_queues[ch].size() > 512) || finished;});
+          {
+            std::unique_lock<std::mutex> lock(queue_mutex[ch]);
+            cv[ch].wait(lock, [ch]{ return (memory_queues[ch].read_available() > 1024) || finished;});
+          }
           if (finished) continue;
           #ifdef USE_FPGA
             uint64_t start_addr = 0;
             static std::stack<uint64_t> memory_stacks;
-            while (memory_queues[ch].size() < 128) {
+            while (memory_queues[ch].read_available() < 128) {
               for (size_t i = 0; i < 128; i++) {
                 this_memory = memory_queues[ch].front();
                 memory_queues[ch].pop();
@@ -235,18 +238,16 @@ void thread_write_files(const int ch) {
               buffer += fmt::format("\n");
             }
           #else
-            for (size_t i = 0; i < 512; ++i) {
-              this_memory = memory_queues[ch].front();
-              memory_queues[ch].pop();
+            for (size_t i = 0; i < 1024; ++i) {
+              memory_queues[ch].pop(this_memory);
               buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr, this_memory.data);
             }
           #endif
         }
       } else {
-        size_t queue_size = memory_queues[ch].size();
+        size_t queue_size = memory_queues[ch].read_available();
         for (size_t i = 0; i < queue_size; ++i) {
-          this_memory = memory_queues[ch].front();
-          memory_queues[ch].pop();
+          memory_queues[ch].pop(this_memory);
           #ifdef USE_FPGA
             buffer += fmt::format("{:x}\n{:016x}\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
           #else
@@ -284,12 +285,16 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
     calculate_index_hex(rd_addr, &file_index);
     uint64_t addr = rd_addr;
 #endif // USE_FPGA
-    {
-      std::lock_guard<std::mutex> lock(queue_mutex[file_index]);
-      memory_queues[file_index].push({data_byte, addr});
-    }
+      while (true) {
+        if (memory_queues[file_index].write_available() >= 10) {
+          memory_queues[file_index].push({data_byte, addr});
+          break;
+        } else {
+          std::this_thread::sleep_for(std::chrono::nanoseconds(10));
+        }
+      }
     data_count[file_index] ++;
-    if (data_count[file_index] == 512) {
+    if (data_count[file_index] == 1024) {
       cv[file_index].notify_one();
       data_count[file_index] = 0;
     }
