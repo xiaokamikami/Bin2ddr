@@ -3,8 +3,6 @@
 #include <string>
 #include <vector>
 #include <sstream>
-#include <iomanip>
-#include <bitset>
 #include <endian.h>
 #include <thread>
 #include <vector>
@@ -12,7 +10,6 @@
 #include <condition_variable>
 #include <queue>
 #include <array>
-#include <fstream>
 #include <stack> 
 #include <fmt/core.h>
 #include <boost/lockfree/spsc_queue.hpp>
@@ -28,7 +25,6 @@
 
 //base addr map
 std::string addr_map = "bg,ba,row,col";
-
 std::string input_file;
 std::string gcpt_file;
 std::string compress_file;
@@ -139,10 +135,9 @@ void set_ddrmap() {
 //get ddr addr
 inline uint64_t calculate_index_hex(uint64_t index, uint32_t *file_index) {
     // basic col [2:0]
+    uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0,dch = 0,rank = 0;
     uint32_t col_2_to_0 = index & 0x7;
     index = index >> 3;
-    static uint32_t bg = 0,ba = 0,col_9_to_3 = 0,row = 0,dch = 0,rank = 0;
-
     for (int i = addr_map_order.use_size; i > 0; i--) {
       if (addr_map_order.ba == i) {
         ba = (index & 0x3);
@@ -273,12 +268,12 @@ void thread_write_files(const int ch) {
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
+  uint32_t file_index = 0;
   static uint32_t data_count[MAX_FILE] = {};
-#if defined(RM_ZERO)
-  if (data_byte != 0) {
+#ifdef RM_ZERO
+  if (data_byte == 0)
+    return;
 #endif // RM_ZERO
-    uint32_t file_index = 0;
-    static uint64_t queue_size = 0;
 #ifndef USE_FPGA
     uint64_t addr = calculate_index_hex(index, &file_index);
 #else
@@ -298,9 +293,6 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
       cv[file_index].notify_one();
       data_count[file_index] = 0;
     }
-#if defined(RM_ZERO)
-  }
-#endif // RM_ZERO
 }
 
 uint64_t mem_out_raw2(bool use_compress, uint64_t offset = 0) {
@@ -354,9 +346,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
     if (use_compress) {
       while (true) {
         // out compress dat
-        if (feof(compress_fd))
-          break;
-        if (fscanf(compress_fd, "%ld", &rd_addr) != 1)
+        if (feof(compress_fd) || fscanf(compress_fd, "%ld", &rd_addr) != 1)
           break;
         rd_addr = rd_addr * COMPRESS_SIZE / UINT64_SIZE;
         if (rd_addr >= img_size) {
