@@ -49,6 +49,9 @@ typedef struct {
 addr_map_info addr_map_order;
 
 uint8_t need_files = 0;
+void process_and_update_buffer(std::string &buffer, const int ch);
+void process_finished_buffer(std::string &buffer, const int ch);
+
 int main(int argc, char *argv[]) {
     int args_pars = 0;
     args_pars = args_parsingniton(argc, argv);
@@ -211,27 +214,7 @@ void thread_write_files(const int ch) {
           }
           if (finished) continue;
           #ifdef USE_FPGA
-            uint64_t start_addr = 0;
-            static std::stack<uint64_t> memory_stacks;
-            while (memory_queues[ch].read_available() < 128) {
-              for (size_t i = 0; i < 128; i++) {
-                this_memory = memory_queues[ch].front();
-                memory_queues[ch].pop();
-                if (i == 0) {
-                  start_addr = this_memory.addr;
-                  buffer += fmt::format("{:016x}\n", this_memory.addr * sizeof(uint64_t));
-                } else if (start_addr + i != this_memory.addr) {
-                  break;
-                }
-                memory_stacks.push(this_memory.data);
-              }
-              for (size_t i = memory_stacks.size(); i > 0; i--) {
-                uint64_t data = memory_stacks.top();
-                memory_stacks.pop();
-                buffer += fmt::format("{:016x}", this_memory.data);
-              }
-              buffer += fmt::format("\n");
-            }
+            process_and_update_buffer(buffer, ch);
           #else
             for (size_t i = 0; i < 1024; ++i) {
               memory_queues[ch].pop(this_memory);
@@ -241,14 +224,18 @@ void thread_write_files(const int ch) {
         }
       } else {
         size_t queue_size = memory_queues[ch].read_available();
+#ifdef USE_FPGA
+        if (queue_size > 128) {
+          process_and_update_buffer(buffer, ch);
+        }
+        process_finished_buffer(buffer, ch);
+        queue_size = memory_queues[ch].read_available();
+#else
         for (size_t i = 0; i < queue_size; ++i) {
           memory_queues[ch].pop(this_memory);
-          #ifdef USE_FPGA
-            buffer += fmt::format("{:x}\n{:016x}\n", this_memory.addr * sizeof(uint64_t), this_memory.data);
-          #else
-            buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr, this_memory.data);
-          #endif
+          buffer += fmt::format("@{:x} {:016x}\n", this_memory.addr, this_memory.data);
         }
+#endif
       }
 
       if (buffer.size() > STREAM_BUFFER_SIZE) {
@@ -265,6 +252,58 @@ void thread_write_files(const int ch) {
   }
 }
 
+void process_and_update_buffer(std::string &buffer, const int ch) {
+  uint64_t start_addr = 0;
+  static std::stack<uint64_t> memory_stacks;
+  while (memory_queues[ch].read_available() > 128) {
+    for (size_t i = 0; i < 128; i++) {
+      MemoryQueues this_memory = memory_queues[ch].front();
+      memory_queues[ch].pop();
+      if (i == 0) {
+        start_addr = this_memory.addr;
+        buffer += fmt::format("{:016x}\n", this_memory.addr * sizeof(uint64_t));
+      } else if (start_addr + i != this_memory.addr) {
+        break;
+      }
+      memory_stacks.push(this_memory.data);
+    }
+    for (size_t i = memory_stacks.size(); i > 0; i--) {
+      uint64_t data = memory_stacks.top();
+      memory_stacks.pop();
+      buffer += fmt::format("{:016x}", data);
+    }
+    buffer += fmt::format("\n");
+  }
+}
+
+void process_finished_buffer(std::string &buffer, const int ch) {
+  uint64_t start_addr = 0;
+  static std::stack<uint64_t> memory_stacks;
+  MemoryQueues this_memory;
+  size_t memory_queues_size = memory_queues[ch].read_available();
+  printf("finished read_available %ld\n", memory_queues_size);
+  for (size_t i = 0; i < 128; i++) {
+    if (i < memory_queues_size) {
+      this_memory = memory_queues[ch].front();
+      memory_queues[ch].pop();
+      if (i == 0) {
+        start_addr = this_memory.addr;
+        buffer += fmt::format("{:016x}\n", this_memory.addr * sizeof(uint64_t));
+      }
+    } else {
+      this_memory.data = 0;
+    }
+    memory_stacks.push(this_memory.data);
+  }
+
+  for (size_t i = memory_stacks.size(); i > 0; i--) {
+    uint64_t data = memory_stacks.top();
+    memory_stacks.pop();
+    buffer += fmt::format("{:016x}", data);
+  }
+  buffer += fmt::format("\n");
+}
+
 inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
   extern uint64_t *ram;
   uint64_t data_byte = *(ram + rd_addr);
@@ -277,17 +316,16 @@ inline void mem_out_hex(uint64_t rd_addr, uint64_t index) {
 #ifndef USE_FPGA
     uint64_t addr = calculate_index_hex(index, &file_index);
 #else
-    calculate_index_hex(rd_addr, &file_index);
     uint64_t addr = rd_addr;
 #endif // USE_FPGA
-      while (true) {
-        if (memory_queues[file_index].write_available() >= 10) {
-          memory_queues[file_index].push({data_byte, addr});
-          break;
-        } else {
-          std::this_thread::sleep_for(std::chrono::nanoseconds(10));
-        }
+    while (true) {
+      if (memory_queues[file_index].write_available() >= 10) {
+        memory_queues[file_index].push({data_byte, addr});
+        break;
+      } else {
+        std::this_thread::sleep_for(std::chrono::nanoseconds(10));
       }
+    }
     data_count[file_index] ++;
     if (data_count[file_index] == 1024) {
       cv[file_index].notify_one();
@@ -374,6 +412,7 @@ uint64_t mem_preload(uint64_t base_address, uint64_t img_size, const std::string
         mem_out_raw2(false);
         index = img_size;
       } else {
+        printf("Start write dat\n");
         while (rd_addr < img_size) {
           mem_out_hex(rd_addr, index);
           rd_addr += 1;
