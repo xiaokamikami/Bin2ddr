@@ -1,8 +1,17 @@
 # Bin2ddr
 A memory file used to convert an executable file to a DDR file
 
+## Project Dependencies 
+This project requires the following third-party libraries
+### Boost library
+#### Ubuntu/Debian
+```bash
+sudo apt install libboost-all-dev
+```
+
 ## use to normal sim-ddr :
 Convert generic binary files:
+
 `./bin2ddr -i xxx.bin -o ./out.dat -m "row,ba,col,bg" `
 
 `./bin2ddr -i ckpt.zstd -o ./out.dat -m "row,ba,col,bg" -r gcpt.bin`
