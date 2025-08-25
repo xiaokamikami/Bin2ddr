@@ -4,4 +4,6 @@ bin2addr
 *.memh
 *.gz
 *.zstd
+*.txt
+*.bin
 settings.json
